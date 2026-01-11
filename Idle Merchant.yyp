@@ -36,9 +36,9 @@
   },
   "name":"Idle Merchant",
   "resources":[
-    {"id":{"name":"obj_intro","path":"objects/obj_intro/obj_intro.yy",},},
+    {"id":{"name":"obj_controller","path":"objects/obj_controller/obj_controller.yy",},},
     {"id":{"name":"the_world","path":"rooms/the_world/the_world.yy",},},
-    {"id":{"name":"scr_time_tracking","path":"scripts/scr_time_tracking/scr_time_tracking.yy",},},
+    {"id":{"name":"main","path":"scripts/main/main.yy",},},
     {"id":{"name":"spr_blue_background","path":"sprites/spr_blue_background/spr_blue_background.yy",},},
     {"id":{"name":"spr_green_background","path":"sprites/spr_green_background/spr_green_background.yy",},},
     {"id":{"name":"spr_red_background","path":"sprites/spr_red_background/spr_red_background.yy",},},

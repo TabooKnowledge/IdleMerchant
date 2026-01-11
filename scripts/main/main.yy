@@ -1,9 +1,9 @@
 {
   "$GMScript":"v1",
-  "%Name":"scr_time_tracking",
+  "%Name":"main",
   "isCompatibility":false,
   "isDnD":false,
-  "name":"scr_time_tracking",
+  "name":"main",
   "parent":{
     "name":"Scripts",
     "path":"folders/Scripts.yy",
