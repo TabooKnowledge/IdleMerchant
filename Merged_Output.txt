@@ -1,39 +1,53 @@
 
 store_state(self)
 alarm[0] = 60;
-clock = new Clock();
+
+journey = new Journey();
 merchant = new Merchant();
 travel = new Travel();
+p_mult = travel.pace_multiplier;
 diary = new Diary();
 scenery = new Scenery();
-components = {clock:clock, merchant:merchant, travel:travel, diary:diary, scenery:scenery};
+components = {journey:journey, merchant:merchant, travel:travel, diary:diary, scenery:scenery};
 restore_state(components);
-
+step = undefined;
 alarm[0] = 60;
 
-scenery.draw(clock);
-var delta = clock.tick(travel.pace_multiplier());
-travel.update(delta);
-merchant.exist(clock);
-diary.update(clock);
-scenery.update(clock);
-print(diary.ledger)
+scenery.draw(step);
 
+step = journey.tick(p_mult())
+if (travel.update(step)) {
+	journey.resting = true;
+};
+merchant.exist(step);
+diary.update(step);
+scenery.update(step);
+print(travel.fatigue);
+print(journey.rest_time);
 
-
+#macro SECONDS_PER_DAY 86400
+#macro MICROSECONDS_PER_SECOND 1000000
+#region Travel
 function Travel() constructor {
 	fatigue = 0;
 	fatigue_rate = 0.0001;
-	recovery_rate = 0.2;
 	
-	update = function(distance_delta) {
-		self.fatigue += distance_delta * self.fatigue_rate;
-		print("Fatigue: " + string(self.fatigue));
+	catch_up = function(step) {
+		var fatigue_total = self.fatigue + step.offline_distance * self.fatigue_rate;
+		var rest_count = floor(fatigue_total);
+		self.fatigue = fatigue_total - rest_count;
+		return rest_count;
+	};
+	
+	update = function(step) {
+		self.fatigue += step.distance_delta * self.fatigue_rate;
 		self.fatigue = clamp(self.fatigue, 0, 1);
+		
 		 if (self.fatigue >= 1) {
 			 self.fatigue = 0;
 			 return true;
 		 };
+		 
 		 return false;
 	};
 	
@@ -41,51 +55,98 @@ function Travel() constructor {
 		return lerp(1, 0.7, self.fatigue);
 	};
 };
+#endregion
 
-
-function Clock() constructor {
+#region Journey
+function Journey() constructor {
 	distance = 0;
 	time = 0;
+	day = 0;
 	last_time = date_current_datetime();
-	pace = 20;
+	pace = 1;
+	offline_time = 0;
 	offline_distance = 0;
-	total_journey_length = 1000;
-	journey_complete = false;
+	resting = false;
+	rest_time = 20;
+	max_rest = 20;
 	
 	catch_up = function() {
 		var now = date_current_datetime();
-		var delta_seconds = (now - self.last_time) * 86400;
+		var delta_seconds = (now - self.last_time) * SECONDS_PER_DAY;
+		
+		self.offline_time = delta_seconds;
 		self.time += delta_seconds;
+		self.day = floor(self.time / SECONDS_PER_DAY);
+		
 		self.offline_distance = delta_seconds * self.pace;
 		self.distance += self.offline_distance;
-		self.distance = clamp(self.distance, 0, self.total_journey_length);
+		
 		self.last_time = now;
+		
+		return {
+			offline_distance: self.offline_distance, 
+			offline_time: self.offline_time,
+			distance: self.distance,
+			time: self.time,
+			day: self.day
+		};
 	};
 	
 	tick = function(multiplier) {
-		self.time += (delta_time / 1000000);
+		self.time += (delta_time / MICROSECONDS_PER_SECOND);
+		self.day = floor(self.time / SECONDS_PER_DAY);
 		
-		var delta = self.pace * multiplier * (delta_time / 1000000);
-		
-		self.distance += delta;
-		self.distance = clamp(self.distance, 0, self.total_journey_length);
-		
-		if (self.distance == self.total_journey_length) {
-			self.journey_complete = true;
+		if (self.resting && self.rest_time > 0) {
+			var delta = 0
+			self.rest_time -= (delta_time / MICROSECONDS_PER_SECOND);
+		} else {
+			self.resting = false;
+			self.rest_time = self.max_rest;
+			var delta = self.pace * multiplier * (delta_time / MICROSECONDS_PER_SECOND);
+			self.distance += delta;
 		};
 		
-		return delta;
+		return {
+			offline_distance: self.offline_distance,
+			offline_time: self.offline_time,
+			distance: self.distance, 
+			distance_delta: delta, 
+			time: self.time, 
+			day: self.day
+		};
+	};
+	
+	rest_catch_up = function(rest_counter) {
+		var time_rested = self.rest_time * rest_counter;
+		
+		var distance_lost = time_rested * self.pace;
+		distance_lost = min(distance_lost, self.offline_distance);
+		
+		self.offline_distance -= distance_lost;
+		self.distance -= distance_lost;
+		
+		return {
+			offline_distance: self.offline_distance, 
+			offline_time: self.offline_time,
+			distance: self.distance,
+			time: self.time,
+			day: self.day
+		};
 	};
 };
+#endregion
 
+#region Merchant
 function Merchant() constructor {
 	age = 0;
 	
-	exist = function(clock) {
-		self.age = clock.time;
+	exist = function(step) {
+		self.age = step.time;
 	};
 };
+#endregion
 
+#region Scenery
 function Scenery() constructor {
 	max_span = 960;
 	scroll = 0;
@@ -93,11 +154,11 @@ function Scenery() constructor {
 	blue_start_x = room_width*2;
 	green_start_x = room_width*3;
 	
-	update = function(clock) {
-		self.scroll = clock.distance mod self.max_span;
+	update = function(step) {
+		self.scroll = step.distance mod self.max_span;
 	};
 	
-	draw = function(clock) {
+	draw = function(step) {
 		var red_x = self.red_start_x - self.scroll;
 		var blue_x = self.blue_start_x - self.scroll;
 		var green_x = self.green_start_x - self.scroll;
@@ -106,13 +167,15 @@ function Scenery() constructor {
 		draw_sprite(spr_blue_background, 0, blue_x, 0);
 		draw_sprite(spr_green_background, 0, green_x, 0);
 
-
-		draw_text(25, 25, string_format(clock.distance, 0, 0));
-		draw_text(25, 50, string_format(clock.offline_distance, 0, 0));
+		draw_text(25, 0, string_format(step.time, 0, 0));
+		draw_text(25, 25, string_format(step.distance, 0, 0));
+		draw_text(25, 75, string_format(step.offline_time, 0, 0));
+		draw_text(25, 100, string_format(step.offline_distance, 0, 0));
 	};	
 };
+#endregion
 
-
+#region Diary
 function Diary() constructor {
 	next_event = 0;
     ledger = [];
@@ -123,15 +186,16 @@ function Diary() constructor {
 		[960, "Reached the edge of the province"],
 	];
 	
-	update = function(clock) {
-		while (self.next_event < array_length(self.events) && clock.distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
+	update = function(step) {
+		while (self.next_event < array_length(self.events) && step.distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
 			array_push(self.ledger, self.events[self.next_event][EVENTS.EVENT]);
 			self.next_event++;
 		};
 	};
 };
+#endregion
 
-
+#region Save/Load
 function save(data, file_name) {
 	var json_string = json_stringify(data);
 	var file = file_text_open_write(file_name);
@@ -152,11 +216,13 @@ function load(file_name) {
 
 function store_state(controller) {
 	var data = {
-	    distance: controller.clock.distance,
-		time: controller.clock.time,
+	    distance: controller.journey.distance,
+		time: controller.journey.time,
 	    last_time: date_current_datetime(),
+		
 		next_event: controller.diary.next_event,
 		ledger: controller.diary.ledger,
+		
 		fatigue: controller.travel.fatigue,
 	};
 	save(data, "save.json");
@@ -165,19 +231,29 @@ function store_state(controller) {
 function restore_state(components) {
 	var save_data = load("save.json");
 	if (save_data != undefined){
-		components.clock.distance = save_data.distance;
-		components.clock.last_time = save_data.last_time;
+		components.journey.distance = save_data.distance;
+		components.journey.time = save_data.time;
+		components.journey.last_time = save_data.last_time;
+		var begin_step = components.journey.catch_up();
+		
+		components.travel.fatigue = save_data.fatigue;
+		var rest_counter = components.travel.catch_up(begin_step);
+		
+		var end_step = components.journey.rest_catch_up(rest_counter);
+		
+		components.merchant.exist(end_step);
+		
 		components.diary.next_event = save_data.next_event;
 		components.diary.ledger = save_data.ledger;
-		components.travel.fatigue = save_data.fatigue;
-		components.clock.catch_up();
-		components.diary.update(clock);
-		//array_push(diary.ledger, "Away for " +string_format((clock.offline_distance / 60), 0, 0) + " minutes. " + "Merchant traveled " + string(clock.offline_distance) + " meters.");
+		components.diary.update(end_step);
+		
 		return true;
 	};
 	return false;
 };
+#endregion
 
+#region Helpers
 function print(_strng="") {
     if (_strng == "") return;
     show_debug_message(_strng);
@@ -187,3 +263,4 @@ enum EVENTS {
 	DISTANCE = 0,
 	EVENT = 1
 }
+#endregion

@@ -1,2 +1,2 @@
-scenery.draw(journey);
+scenery.draw(step);
 

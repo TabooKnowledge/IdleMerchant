@@ -1,7 +1,10 @@
 step = journey.tick(p_mult())
-travel.update(step);
+if (travel.update(step)) {
+	journey.resting = true;
+};
 merchant.exist(step);
 diary.update(step);
 scenery.update(step);
-print(merchant.age);
+print(travel.fatigue);
+print(journey.rest_time);
 
