@@ -1,2 +1,3 @@
-scenery.draw(step);
+//Draw event
+scenery.draw(step_signal);
 merchant.persist();

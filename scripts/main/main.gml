@@ -1,32 +1,29 @@
+//Scripts
 #region Travel
 function Travel() constructor {
 	fatigue = 0;
 	fatigue_rate = 0.0001;
+	pace_multiplier = 0;
 	
-	catch_up = function(step) {
-		var fatigue_total = self.fatigue + step.offline_distance * self.fatigue_rate;
-		var rest_count = floor(fatigue_total);
-		self.fatigue = fatigue_total - rest_count;
-		return rest_count;
-	};
-	
-	update = function(step) {
-		self.fatigue += step.distance_delta * self.fatigue_rate;
+	update = function(step_signal) {
+		self.fatigue += step_signal[STEP].distance_delta * self.fatigue_rate;
 		self.fatigue = clamp(self.fatigue, 0, 1);
 		
 		 if (self.fatigue >= 1) {
+			 step_signal[SIGNAL].rest_request = true;
 			 self.fatigue = 0;
-			 return true;
 		 };
 		 
-		 return false;
-	};
-	
-	pace_multiplier = function() {
-		return lerp(1, 0.7, self.fatigue);
+		 self.pace_multiplier = lerp(1, 0.7, self.fatigue);
+		 step_signal[SIGNAL].pace_multiplier = self.pace_multiplier;
+		 
+		 step_signal[SIGNAL].fatigue = self.fatigue; 
+		 
+		 return step_signal;
 	};
 };
 #endregion
+
 
 #region Journey
 function Journey() constructor {
@@ -36,6 +33,7 @@ function Journey() constructor {
 	offline_time = 0;
 	
 	distance = 0;
+	distance_delta = 0;
 	pace = 1;
 	offline_distance = 0;
 	
@@ -43,72 +41,58 @@ function Journey() constructor {
 	rest_timer = 20;
 	rest_duration = 20;
 	
-	// The measurment of a moment
-	tick = function(multiplier) {
-		var distance_delta = 0;
-		self.time += (delta_time / MICROSECONDS_PER_SECOND);
+	dt = 0;
+	
+	
+	tick = function(step_signal) {
+		self.dt = step_signal[STEP].dt
+		self.pass_time();
+		self.rest(step_signal);
+		self.move_distance(step_signal);
+		return self.update_step_signal(step_signal);
+		
+	};
+	
+	pass_time = function() {
+		self.time += self.dt;
 		self.day = floor(self.time / SECONDS_PER_DAY);
-		
-		if (self.resting && self.rest_timer > 0) {
-			self.rest_timer -= (delta_time / MICROSECONDS_PER_SECOND);
-		} else {
-			self.resting = false;
-			self.rest_timer = self.rest_duration;
-			distance_delta = self.pace * multiplier * (delta_time / MICROSECONDS_PER_SECOND);
-			self.distance += distance_delta;
-		};
-		
-		return {
-			offline_distance: self.offline_distance,
-			offline_time: self.offline_time,
-			distance: self.distance, 
-			distance_delta: distance_delta,
-			resting: self.resting,
-			time: self.time, 
-			day: self.day
+		self.last_time = date_current_datetime();
+	};
+	
+	rest = function(step_signal) {
+		self.check_rest(step_signal);
+		if (self.resting) {
+			self.rest_timer -= self.dt;
+			if (self.rest_timer < 0) {
+				self.resting = false;
+				self.rest_timer = self.rest_duration;
+			};
 		};
 	};
 	
-	// Remembering the past
-	catch_up = function() {
-		var now = date_current_datetime();
-		var delta_seconds = (now - self.last_time) * SECONDS_PER_DAY;
-		
-		self.offline_time = delta_seconds;
-		self.time += delta_seconds;
-		self.day = floor(self.time / SECONDS_PER_DAY);
-		
-		self.offline_distance = delta_seconds * self.pace;
-		self.distance += self.offline_distance;
-		
-		self.last_time = now;
-		
-		return {
-			offline_distance: self.offline_distance, 
-			offline_time: self.offline_time,
-			distance: self.distance,
-			time: self.time,
-			day: self.day
+	check_rest = function(step_signal) {
+		if (step_signal[SIGNAL].rest_request) {
+			self.resting = true;
+			step_signal[SIGNAL].rest_request = false;
 		};
 	};
 	
-	// Time mattered
-	rest_catch_up = function(rest_counter) {
-		var time_rested = self.rest_duration * rest_counter;
-		
-		var distance_lost = time_rested * self.pace;
-		distance_lost = min(distance_lost, self.offline_distance);
-		
-		self.offline_distance -= distance_lost;
-		self.distance -= distance_lost;
-		
-		return {
-			offline_distance: self.offline_distance, 
-			offline_time: self.offline_time,
-			distance: self.distance,
-			time: self.time,
-			day: self.day
+	move_distance = function(step_signal) {
+		self.distance_delta = 0;
+		if (!self.resting) {
+			self.distance_delta = self.pace * step_signal[SIGNAL].pace_multiplier * self.dt;
+			self.distance += self.distance_delta;
 		};
+	};
+	
+	update_step_signal = function(step_signal) {
+		step_signal[STEP].distance = self.distance;
+		step_signal[STEP].distance_delta = self.distance_delta;
+		step_signal[STEP].resting = self.resting;
+		step_signal[STEP].time = self.time;
+		step_signal[STEP].last_time = self.last_time;
+		step_signal[STEP].day = self.day;
+		return step_signal;
 	};
 };
 #endregion
@@ -117,8 +101,8 @@ function Journey() constructor {
 function Merchant() constructor {
 	age = 0;
 	sprite = spr_merchant;
-	exist = function(step) {
-		self.age = step.time;
+	exist = function(step_signal) {
+		self.age = step_signal[STEP].time;
 	};
 	
 	persist = function() {
@@ -135,11 +119,11 @@ function Scenery() constructor {
 	blue_start_x = room_width*2;
 	green_start_x = room_width*3;
 	
-	update = function(step) {
-		self.scroll = step.distance mod self.max_span;
+	update = function(step_signal) {
+		self.scroll = step_signal[STEP].distance mod self.max_span;
 	};
 	
-	draw = function(step) {
+	draw = function(step_signal) {
 		var red_x = self.red_start_x - self.scroll;
 		var blue_x = self.blue_start_x - self.scroll;
 		var green_x = self.green_start_x - self.scroll;
@@ -148,10 +132,10 @@ function Scenery() constructor {
 		draw_sprite(spr_blue_background, 0, blue_x, 0);
 		draw_sprite(spr_green_background, 0, green_x, 0);
 
-		draw_text(25, 0, string_format(step.time, 0, 0));
-		draw_text(25, 25, string_format(step.distance, 0, 0));
-		draw_text(25, 75, string_format(step.offline_time, 0, 0));
-		draw_text(25, 100, string_format(step.offline_distance, 0, 0));
+		draw_text(25, 0, string_format(step_signal[STEP].time, 0, 0));
+		draw_text(25, 25, string_format(step_signal[STEP].distance, 0, 0));
+		draw_text(25, 75, string_format(step_signal[STEP].offline_time, 0, 0));
+		draw_text(25, 100, string_format(step_signal[STEP].offline_distance, 0, 0));
 	};	
 };
 #endregion
@@ -168,18 +152,21 @@ function Diary() constructor {
 		[960, "Reached the edge of the province"],
 	];
 	
-	update = function(step) {
-		if (variable_struct_exists(step, "resting") && step.resting) {
+	update = function(step_signal) {
+		if (step_signal[STEP].resting) {
 			
-			if (self.rest_distance != step.distance) {
+			if (self.rest_distance != step_signal[STEP].distance) {
 				array_push(self.ledger, "The merchant stopped under an old oak to rest.");
 			};
-			self.rest_distance = step.distance;
+			self.rest_distance = step_signal[STEP].distance;
 		};
-		while (self.next_event < array_length(self.events) && step.distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
+		while (self.next_event < array_length(self.events) && step_signal[STEP].distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
 			array_push(self.ledger, self.events[self.next_event][EVENTS.EVENT]);
 			self.next_event++;
 		};
+		step_signal[SIGNAL].next_event = self.next_event;
+		step_signal[SIGNAL].ledger = self.ledger;
+		return step_signal;
 	};
 };
 #endregion
@@ -203,42 +190,50 @@ function load(file_name) {
 	    return json_parse(json_string);
 };
 
-function store_state(controller) {
-	var data = {
-	    distance: controller.journey.distance,
-		time: controller.journey.time,
-	    last_time: date_current_datetime(),
-		
-		next_event: controller.diary.next_event,
-		ledger: controller.diary.ledger,
-		
-		fatigue: controller.travel.fatigue,
-	};
-	save(data, "save.json");
+function store_state(step_signal) {
+	save(step_signal, "save.json");
+};
+
+function load_components_state(step_signal, components) {
+	components.journey.distance = step_signal[STEP].distance;
+	components.journey.time = step_signal[STEP].time;
+	components.journey.last_time = step_signal[STEP].last_time;
+	
+	components.travel.fatigue = step_signal[SIGNAL].fatigue;
+	
+	components.diary.next_event = step_signal[SIGNAL].next_event;
+	components.diary.ledger = step_signal[SIGNAL].ledger;
 };
 
 function restore_state(components) {
-	var save_data = load("save.json");
-	if (save_data != undefined){
-		components.journey.distance = save_data.distance;
-		components.journey.time = save_data.time;
-		components.journey.last_time = save_data.last_time;
-		var begin_step = components.journey.catch_up();
+	var step_signal = load("save.json");
+	if (step_signal != undefined) {
+		load_components_state(step_signal, components);
 		
-		components.travel.fatigue = save_data.fatigue;
-		var rest_counter = components.travel.catch_up(begin_step);
+		var now = date_current_datetime();
+		var offline_seconds = (now - step_signal[STEP].last_time) * SECONDS_PER_DAY;
+		step_signal[STEP].offline_time = offline_seconds;
 		
-		var end_step = components.journey.rest_catch_up(rest_counter);
+		var start_distance = step_signal[STEP].distance;
 		
-		components.merchant.exist(end_step);
 		
-		components.diary.next_event = save_data.next_event;
-		components.diary.ledger = save_data.ledger;
-		components.diary.update(end_step);
+		var chunk = 1;
+		var remaining = offline_seconds;
 		
-		return true;
+		while (remaining > 0) {
+			step_signal[STEP].dt = min(chunk, remaining);
+			
+			step_signal = components.journey.tick(step_signal);
+			step_signal = components.travel.update(step_signal);
+			step_signal = components.diary.update(step_signal);
+			
+			remaining -= step_signal[STEP].dt;
+		};
+		var end_distance = step_signal[STEP].distance;
+		step_signal[STEP].offline_distance = end_distance - start_distance;
+		return step_signal;
 	};
-	return false;
+	return undefined;
 };
 #endregion
 
@@ -252,4 +247,29 @@ enum EVENTS {
 	DISTANCE = 0,
 	EVENT = 1
 }
+
+function create_step_signal() {
+	var step = {
+		time: 0,
+        day: 0,
+        distance: 0,
+        distance_delta: 0,
+        resting: false,
+		offline_time: 0,
+        offline_distance: 0,
+		dt: 0
+	};
+	
+	var signal = {
+		pace_multiplier: 1,
+        rest_request: false,
+        fatigue: 0,
+        rest_count: 0,
+		next_event: 0,
+		ledger: []
+	};
+	
+	return [step, signal];
+};
+
 #endregion
