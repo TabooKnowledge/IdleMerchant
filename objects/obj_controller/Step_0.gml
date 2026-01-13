@@ -6,5 +6,6 @@ merchant.exist(step);
 diary.update(step);
 scenery.update(step);
 print(travel.fatigue);
-print(journey.rest_time);
+print(journey.rest_timer);
+print(diary.ledger);
 

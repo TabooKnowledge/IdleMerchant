@@ -30,17 +30,46 @@ function Travel() constructor {
 
 #region Journey
 function Journey() constructor {
-	distance = 0;
 	time = 0;
 	day = 0;
 	last_time = date_current_datetime();
-	pace = 1;
 	offline_time = 0;
-	offline_distance = 0;
-	resting = false;
-	rest_time = 20;
-	max_rest = 20;
 	
+	distance = 0;
+	pace = 1;
+	offline_distance = 0;
+	
+	resting = false;
+	rest_timer = 20;
+	rest_duration = 20;
+	
+	// The measurment of a moment
+	tick = function(multiplier) {
+		var distance_delta = 0;
+		self.time += (delta_time / MICROSECONDS_PER_SECOND);
+		self.day = floor(self.time / SECONDS_PER_DAY);
+		
+		if (self.resting && self.rest_timer > 0) {
+			self.rest_timer -= (delta_time / MICROSECONDS_PER_SECOND);
+		} else {
+			self.resting = false;
+			self.rest_timer = self.rest_duration;
+			distance_delta = self.pace * multiplier * (delta_time / MICROSECONDS_PER_SECOND);
+			self.distance += distance_delta;
+		};
+		
+		return {
+			offline_distance: self.offline_distance,
+			offline_time: self.offline_time,
+			distance: self.distance, 
+			distance_delta: distance_delta,
+			resting: self.resting,
+			time: self.time, 
+			day: self.day
+		};
+	};
+	
+	// Remembering the past
 	catch_up = function() {
 		var now = date_current_datetime();
 		var delta_seconds = (now - self.last_time) * SECONDS_PER_DAY;
@@ -63,32 +92,9 @@ function Journey() constructor {
 		};
 	};
 	
-	tick = function(multiplier) {
-		self.time += (delta_time / MICROSECONDS_PER_SECOND);
-		self.day = floor(self.time / SECONDS_PER_DAY);
-		
-		if (self.resting && self.rest_time > 0) {
-			var delta = 0
-			self.rest_time -= (delta_time / MICROSECONDS_PER_SECOND);
-		} else {
-			self.resting = false;
-			self.rest_time = self.max_rest;
-			var delta = self.pace * multiplier * (delta_time / MICROSECONDS_PER_SECOND);
-			self.distance += delta;
-		};
-		
-		return {
-			offline_distance: self.offline_distance,
-			offline_time: self.offline_time,
-			distance: self.distance, 
-			distance_delta: delta, 
-			time: self.time, 
-			day: self.day
-		};
-	};
-	
+	// Time mattered
 	rest_catch_up = function(rest_counter) {
-		var time_rested = self.rest_time * rest_counter;
+		var time_rested = self.rest_duration * rest_counter;
 		
 		var distance_lost = time_rested * self.pace;
 		distance_lost = min(distance_lost, self.offline_distance);
@@ -110,9 +116,13 @@ function Journey() constructor {
 #region Merchant
 function Merchant() constructor {
 	age = 0;
-	
+	sprite = spr_merchant;
 	exist = function(step) {
 		self.age = step.time;
+	};
+	
+	persist = function() {
+		draw_sprite(spr_merchant, 0, room_width div 2 - sprite_get_width(spr_merchant) div 2, (room_height - room_height div 4) - sprite_get_height(spr_merchant) div 2);
 	};
 };
 #endregion
@@ -148,16 +158,24 @@ function Scenery() constructor {
 
 #region Diary
 function Diary() constructor {
+	rest_distance = 0;
 	next_event = 0;
     ledger = [];
 	events = [
-		[160, "Passed an odd looking lizard"],
-		[320, "Met a friendly poet"],
-		[480, "Rested under a large tree"],
+		[160,	  "Passed an odd looking lizard"],
+		[320,			   "Met a friendly poet"],
+		[480,		 "Rested under a large tree"],
 		[960, "Reached the edge of the province"],
 	];
 	
 	update = function(step) {
+		if (variable_struct_exists(step, "resting") && step.resting) {
+			
+			if (self.rest_distance != step.distance) {
+				array_push(self.ledger, "The merchant stopped under an old oak to rest.");
+			};
+			self.rest_distance = step.distance;
+		};
 		while (self.next_event < array_length(self.events) && step.distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
 			array_push(self.ledger, self.events[self.next_event][EVENTS.EVENT]);
 			self.next_event++;
