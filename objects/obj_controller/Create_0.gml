@@ -8,4 +8,5 @@ scenery = new Scenery();
 components = {journey:journey, merchant:merchant, travel:travel, diary:diary, scenery:scenery};
 step_signal = create_step_signal();
 step_signal = restore_state(components);
-alarm[0] = 60 / SECONDS_PER_DAY;
+alarm[0] = 60;
+debug_print = true;

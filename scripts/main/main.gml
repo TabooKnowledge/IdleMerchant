@@ -106,31 +106,34 @@ function Merchant() constructor {
 	};
 	
 	persist = function() {
-		draw_sprite(spr_merchant, 0, room_width div 2 - sprite_get_width(spr_merchant) div 2, (room_height - room_height div 4) - sprite_get_height(spr_merchant) div 2);
+		draw_sprite(spr_merchant, 0, room_width div 6 - sprite_get_width(spr_merchant) div 2, (room_height - room_height div 6) - sprite_get_height(spr_merchant) div 2);
 	};
 };
 #endregion
 
 #region Scenery
 function Scenery() constructor {
-	max_span = 960;
+	max_span = sprite_get_width(spr_grass);
 	scroll = 0;
-	red_start_x = room_width;
-	blue_start_x = room_width*2;
-	green_start_x = room_width*3;
-	
+	layers = [spr_grass, spr_canopy, spr_trees_1, spr_trees_2, spr_trees_3];
 	update = function(step_signal) {
 		self.scroll = step_signal[STEP].distance mod self.max_span;
 	};
 	
 	draw = function(step_signal) {
-		var red_x = self.red_start_x - self.scroll;
-		var blue_x = self.blue_start_x - self.scroll;
-		var green_x = self.green_start_x - self.scroll;
-		
-		draw_sprite(spr_red_background, 0, red_x, 0);
-		draw_sprite(spr_blue_background, 0, blue_x, 0);
-		draw_sprite(spr_green_background, 0, green_x, 0);
+		var max_span = self.max_span;
+		var layers_x = [
+			-(self.scroll * 10) mod self.max_span,
+			-(self.scroll * 8) mod self.max_span,
+			-(self.scroll * 6) mod self.max_span,
+			-(self.scroll * 4) mod self.max_span,
+			-(self.scroll * 2) mod self.max_span,
+		]
+		for (var i = array_length(self.layers) -1; i >= 0; i--) {
+			var _layer = self.layers[i];
+			draw_sprite(_layer, 0, layers_x[i], -425);
+			draw_sprite(_layer, 0, layers_x[i] + max_span, -425);
+		};		
 
 		draw_text(25, 0, string_format(step_signal[STEP].time, 0, 0));
 		draw_text(25, 25, string_format(step_signal[STEP].distance, 0, 0));
