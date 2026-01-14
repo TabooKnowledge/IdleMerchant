@@ -24,7 +24,6 @@ function Travel() constructor {
 };
 #endregion
 
-
 #region Journey
 function Journey() constructor {
 	time = 0;
@@ -100,46 +99,66 @@ function Journey() constructor {
 #region Merchant
 function Merchant() constructor {
 	age = 0;
-	sprite = spr_merchant;
+	sprite = spr_merchant_1;
 	exist = function(step_signal) {
 		self.age = step_signal[STEP].time;
 	};
 	
-	persist = function() {
-		draw_sprite(spr_merchant, 0, room_width div 6 - sprite_get_width(spr_merchant) div 2, (room_height - room_height div 6) - sprite_get_height(spr_merchant) div 2);
+	persist = function(step_signal) {
+		var frame = (step_signal[STEP].distance * 5) mod 20;
+		draw_sprite(self.sprite, frame, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2);
 	};
 };
 #endregion
 
 #region Scenery
 function Scenery() constructor {
-	max_span = sprite_get_width(spr_grass);
+	scene_layouts = create_scenery();
+	current_scene = self.scene_layouts.birch;
+	max_span = room_width;
 	scroll = 0;
-	layers = [spr_grass, spr_canopy, spr_trees_1, spr_trees_2, spr_trees_3];
+	layers_x = [];
+	
 	update = function(step_signal) {
 		self.scroll = step_signal[STEP].distance mod self.max_span;
+		self.set_x();
 	};
 	
-	draw = function(step_signal) {
-		var max_span = self.max_span;
-		var layers_x = [
-			-(self.scroll * 10) mod self.max_span,
-			-(self.scroll * 8) mod self.max_span,
-			-(self.scroll * 6) mod self.max_span,
-			-(self.scroll * 4) mod self.max_span,
-			-(self.scroll * 2) mod self.max_span,
-		]
-		for (var i = array_length(self.layers) -1; i >= 0; i--) {
-			var _layer = self.layers[i];
-			draw_sprite(_layer, 0, layers_x[i], -425);
-			draw_sprite(_layer, 0, layers_x[i] + max_span, -425);
-		};		
-
-		draw_text(25, 0, string_format(step_signal[STEP].time, 0, 0));
-		draw_text(25, 25, string_format(step_signal[STEP].distance, 0, 0));
-		draw_text(25, 75, string_format(step_signal[STEP].offline_time, 0, 0));
-		draw_text(25, 100, string_format(step_signal[STEP].offline_distance, 0, 0));
+	set_scene = function(name) {
+		self.current_scene = variable_struct_get(self.scene_layouts, name);
+	};
+	
+	set_x = function() {
+		var total_length = array_length(self.current_scene.back_layers) + array_length(self.current_scene.front_layers);
+		for (var i = 0; i < total_length; i++) {
+			self.layers_x[i] = -(self.scroll * ((i+1) * 8)) mod self.max_span;
+		};
+	};
+	
+	draw_back = function(step_signal) {
+		for (var i = 0; i < array_length(self.current_scene.back_layers); i++) {
+			var _layer = self.current_scene.back_layers[i];
+			draw_sprite(_layer, 0, self.layers_x[i], 0);
+			draw_sprite(_layer, 0, self.layers_x[i] + self.max_span, 0);
+		};
 	};	
+	
+	draw_front = function(step_signal) {	
+		for (var i = 0; i < array_length(self.current_scene.front_layers); i++) {
+			var x_index = i + array_length(self.current_scene.back_layers);
+			var _layer = self.current_scene.front_layers[i];
+			draw_sprite(_layer, 0, self.layers_x[x_index], 0);
+			draw_sprite(_layer, 0, self.layers_x[x_index] + self.max_span, 0);
+		};		
+	};
+	
+	draw_debug = function(step_signal) {
+		draw_text(25, room_height div 2 - 100, string_format(step_signal[STEP].time, 0, 0));
+		draw_text(25, room_height div 2 - 75, string_format(step_signal[STEP].distance, 0, 0));
+		draw_text(25, room_height div 2 - 50, string_format(step_signal[STEP].offline_time, 0, 0));
+		draw_text(25, room_height div 2 - 25, string_format(step_signal[STEP].offline_distance, 0, 0));
+	};
+	
 };
 #endregion
 
@@ -275,4 +294,20 @@ function create_step_signal() {
 	return [step, signal];
 };
 
+function create_scenery() {
+	return {
+		birch: {
+			back_layers: [spr_birch_1, spr_fantasy_4, spr_birch_2, spr_birch_3, spr_birch_4],
+			front_layers: [spr_birch_5]
+		},
+		gold: {
+			back_layers: [spr_gold_1, spr_gold_2, spr_gold_6, spr_gold_3, spr_gold_4],
+			front_layers: [spr_gold_5]
+		},
+		fantasy: {
+			back_layers: [spr_fantasy_1, spr_fantasy_2, spr_fantasy_6, spr_fantasy_3, spr_fantasy_7, spr_fantasy_4],
+			front_layers: [spr_fantasy_5,]
+		},
+	};
+};
 #endregion
