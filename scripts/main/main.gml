@@ -106,7 +106,8 @@ function Merchant() constructor {
 	
 	persist = function(step_signal) {
 		var frame = (step_signal[STEP].distance * 5) mod 20;
-		draw_sprite(self.sprite, frame, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2);
+		
+		draw_sprite_ext(self.sprite, frame, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, 1, 1, 1, c_white, 1);
 	};
 };
 #endregion
@@ -114,7 +115,7 @@ function Merchant() constructor {
 #region Scenery
 function Scenery() constructor {
 	scene_layouts = create_scenery();
-	current_scene = self.scene_layouts.birch;
+	current_scene = self.scene_layouts.gold;
 	max_span = room_width;
 	scroll = 0;
 	layers_x = [];
@@ -131,7 +132,8 @@ function Scenery() constructor {
 	set_x = function() {
 		var total_length = array_length(self.current_scene.back_layers) + array_length(self.current_scene.front_layers);
 		for (var i = 0; i < total_length; i++) {
-			self.layers_x[i] = -(self.scroll * ((i+1) * 8)) mod self.max_span;
+			var _depth = (i+1) / total_length;
+			self.layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
 		};
 	};
 	
@@ -153,42 +155,58 @@ function Scenery() constructor {
 	};
 	
 	draw_debug = function(step_signal) {
-		draw_text(25, room_height div 2 - 100, string_format(step_signal[STEP].time, 0, 0));
-		draw_text(25, room_height div 2 - 75, string_format(step_signal[STEP].distance, 0, 0));
-		draw_text(25, room_height div 2 - 50, string_format(step_signal[STEP].offline_time, 0, 0));
-		draw_text(25, room_height div 2 - 25, string_format(step_signal[STEP].offline_distance, 0, 0));
+		draw_sprite_stretched(spr_black_pixel, 0, 0, room_height, room_width, room_height);
+		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1, 0, c_white, .9);
+		draw_text(25, room_height + 100, string_format(step_signal[STEP].time, 0, 0));
+		draw_text(25, room_height + 75, string_format(step_signal[STEP].distance, 0, 0));
+		draw_text(25, room_height + 50, string_format(step_signal[STEP].offline_time, 0, 0));
+		draw_text(25, room_height + 25, string_format(step_signal[STEP].offline_distance, 0, 0));
 	};
 	
 };
 #endregion
 
-#region Diary
-function Diary() constructor {
+#region Ledger
+function Ledger() constructor {
 	rest_distance = 0;
 	next_event = 0;
-    ledger = [];
-	events = [
-		[160,	  "Passed an odd looking lizard"],
-		[320,			   "Met a friendly poet"],
-		[480,		 "Rested under a large tree"],
-		[960, "Reached the edge of the province"],
-	];
+	showing = [];
+    record = [];
+	time_events = create_time_events();
+	time_i = 0;
+	distance_events = create_distance_events();
+	dist_i = 0;
 	
-	update = function(step_signal) {
-		if (step_signal[STEP].resting) {
-			
-			if (self.rest_distance != step_signal[STEP].distance) {
-				array_push(self.ledger, "The merchant stopped under an old oak to rest.");
-			};
-			self.rest_distance = step_signal[STEP].distance;
+	update = function() {
+		
+	};
+
+	witness = function(step_signal) {
+		if (self.time_i < array_length(self.time_events)) {
+			var time = step_signal[STEP].time;
+			var array = self.time_events;
+			self.time_i = self.update_events(time, array, self.time_i);
 		};
-		while (self.next_event < array_length(self.events) && step_signal[STEP].distance >= self.events[self.next_event][EVENTS.DISTANCE]) {
-			array_push(self.ledger, self.events[self.next_event][EVENTS.EVENT]);
-			self.next_event++;
+		
+		if (self.dist_i < array_length(self.distance_events)) {
+			var distance = step_signal[STEP].distance;
+			var array = self.distance_events;
+			self.dist_i = self.update_events(distance, array, self.dist_i);
 		};
-		step_signal[SIGNAL].next_event = self.next_event;
-		step_signal[SIGNAL].ledger = self.ledger;
+		
+		step_signal[SIGNAL].time_i = self.time_i;
+		step_signal[SIGNAL].dist_i = self.dist_i;
+		step_signal[SIGNAL].record = self.record;
 		return step_signal;
+	}
+			
+	update_events = function(param, array, i) {
+		while (i < array_length(array) && array[i][0] <= param) {
+			var event = array[i][1];
+			array_push(self.record, event);
+			i++
+		};
+		return i;
 	};
 };
 #endregion
@@ -223,8 +241,9 @@ function load_components_state(step_signal, components) {
 	
 	components.travel.fatigue = step_signal[SIGNAL].fatigue;
 	
-	components.diary.next_event = step_signal[SIGNAL].next_event;
-	components.diary.ledger = step_signal[SIGNAL].ledger;
+	components.ledger.time_i = step_signal[SIGNAL].time_i;
+	components.ledger.dist_i = step_signal[SIGNAL].dist_i;
+	components.ledger.record = step_signal[SIGNAL].record;
 };
 
 function restore_state(components) {
@@ -247,7 +266,7 @@ function restore_state(components) {
 			
 			step_signal = components.journey.tick(step_signal);
 			step_signal = components.travel.update(step_signal);
-			step_signal = components.diary.update(step_signal);
+			step_signal = components.ledger.witness(step_signal);
 			
 			remaining -= step_signal[STEP].dt;
 		};
@@ -286,19 +305,22 @@ function create_step_signal() {
 		pace_multiplier: 1,
         rest_request: false,
         fatigue: 0,
-        rest_count: 0,
-		next_event: 0,
-		ledger: []
+		time_i: 0,
+		dist_i: 0,
+		record: []
 	};
 	
 	return [step, signal];
 };
 
+
+
+
 function create_scenery() {
 	return {
 		birch: {
-			back_layers: [spr_birch_1, spr_fantasy_4, spr_birch_2, spr_birch_3, spr_birch_4],
-			front_layers: [spr_birch_5]
+			back_layers: [spr_birch_1, spr_fantasy_4, spr_snow_tree_a, spr_birch_2, spr_birch_3, spr_snow_tree_a_1, spr_birch_4],
+			front_layers: [spr_birch_5, spr_birch_4]
 		},
 		gold: {
 			back_layers: [spr_gold_1, spr_gold_2, spr_gold_6, spr_gold_3, spr_gold_4],
@@ -308,6 +330,42 @@ function create_scenery() {
 			back_layers: [spr_fantasy_1, spr_fantasy_2, spr_fantasy_6, spr_fantasy_3, spr_fantasy_7, spr_fantasy_4],
 			front_layers: [spr_fantasy_5,]
 		},
+		mountain_sunset: {
+			back_layers: [spr_mountain_sunset_01, spr_mountain_sunset_02, spr_mountain_sunset_03, spr_mountain_sunset_04, 
+				spr_mountain_sunset_05, spr_mountain_sunset_06, spr_mountain_sunset_07, spr_mountain_sunset_08, spr_mountain_sunset_09,
+				spr_mountain_sunset_10, spr_mountain_sunset_11, spr_mountain_sunset_12, spr_mountain_sunset_13, spr_mountain_sunset_14,
+				spr_mountain_sunset_15, spr_mountain_sunset_16],
+			front_layers: []
+		},
+		summer: {
+			back_layers: [spr_summer_01, spr_summer_02, spr_summer_03, spr_summer_04],
+			front_layers: [spr_summer_05,]
+		},
 	};
 };
+
+function create_time_events() {
+	var events = [
+		[100, "Passed an odd looking lizard"],
+		[250, "Met a friendly poet"],
+		[1200, "Rested under a large tree"],
+		[1800, "Reached the edge of the province"],
+		[3000, "Couldn't sleep last night"],
+	];
+	array_sort(events, function(a,b) {return a[0] - b[0]})
+	return events;
+};
+
+function create_distance_events() {
+	var events = [
+		[100, "Shoes are broken in now"],
+		[250, "This is where I last saw..."],
+		[1350, "Days like this make me miss my old chair"],
+		[5000, "Breathtaking views"],
+		[7500, "Halfway to nowhere"],
+	];
+	array_sort(events, function(a,b) {return a[0] - b[0]})
+	return events;
+};
+
 #endregion
