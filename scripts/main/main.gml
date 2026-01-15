@@ -115,43 +115,93 @@ function Merchant() constructor {
 #region Scenery
 function Scenery() constructor {
 	scene_layouts = create_scenery();
-	current_scene = self.scene_layouts.gold;
+	current_scene = self.scene_layouts.fantasy;
+	next_scene = self.scene_layouts.gold;
+	transition_length = 10;
+	start_distance = 0;
+	transitioning = false;
+	t_alpha = 0;
 	max_span = room_width;
 	scroll = 0;
-	layers_x = [];
+	cur_layers_x = [];
+	nxt_layers_x = [];
 	
 	update = function(step_signal) {
 		self.scroll = step_signal[STEP].distance mod self.max_span;
 		self.set_x();
+		self.transition(step_signal);
 	};
 	
-	set_scene = function(name) {
-		self.current_scene = variable_struct_get(self.scene_layouts, name);
+	transition = function(step_signal) {
+		if (self.transitioning) {
+			self.t_alpha = (step_signal[STEP].distance - self.start_distance) / self.transition_length;
+			self.t_alpha = clamp(self.t_alpha, 0, 1);
+			if (self.t_alpha >= 1) {
+				self.transitioning = false;
+				self.t_alpha = 0;
+				self.current_scene = self.next_scene;
+			};
+		};
+	};
+	
+	stage_scene = function(name) {
+		self.next_scene = variable_struct_get(self.scene_layouts, name);
 	};
 	
 	set_x = function() {
 		var total_length = array_length(self.current_scene.back_layers) + array_length(self.current_scene.front_layers);
 		for (var i = 0; i < total_length; i++) {
 			var _depth = (i+1) / total_length;
-			self.layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
+			self.cur_layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
+		};
+		
+		if (self.transitioning) {
+			var total_length = array_length(self.next_scene.back_layers) + array_length(self.next_scene.front_layers);
+			for (var i = 0; i < total_length; i++) {
+				var _depth = (i+1) / total_length;
+				self.nxt_layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
+			};
 		};
 	};
 	
 	draw_back = function(step_signal) {
+		var out_alpha = (self.transitioning == false) ? 1 : (1-self.t_alpha);
+		var in_alpha = self.t_alpha;
+		
 		for (var i = 0; i < array_length(self.current_scene.back_layers); i++) {
 			var _layer = self.current_scene.back_layers[i];
-			draw_sprite(_layer, 0, self.layers_x[i], 0);
-			draw_sprite(_layer, 0, self.layers_x[i] + self.max_span, 0);
+			draw_sprite_ext(_layer, 0, self.cur_layers_x[i], 0, 1, 1, 0, c_white, out_alpha);
+			draw_sprite_ext(_layer, 0, self.cur_layers_x[i] + self.max_span, 0, 1, 1, 0, c_white, out_alpha);
+		};
+		
+		if (self.transitioning) {
+			for (var i = 0; i < array_length(self.next_scene.back_layers); i++) {
+				var _layer = self.next_scene.back_layers[i];
+				draw_sprite_ext(_layer, 0, self.nxt_layers_x[i], 0, 1, 1, 0, c_white, in_alpha);
+				draw_sprite_ext(_layer, 0, self.nxt_layers_x[i] + self.max_span, 0, 1, 1, 0, c_white, in_alpha);
+			};
 		};
 	};	
 	
 	draw_front = function(step_signal) {	
+		var out_alpha = (self.transitioning == false) ? 1 : (1-self.t_alpha);
+		var in_alpha = self.t_alpha;
+		
 		for (var i = 0; i < array_length(self.current_scene.front_layers); i++) {
 			var x_index = i + array_length(self.current_scene.back_layers);
 			var _layer = self.current_scene.front_layers[i];
-			draw_sprite(_layer, 0, self.layers_x[x_index], 0);
-			draw_sprite(_layer, 0, self.layers_x[x_index] + self.max_span, 0);
+			draw_sprite_ext(_layer, 0, self.cur_layers_x[x_index], 0, 1, 1, 0, c_white, out_alpha);
+			draw_sprite_ext(_layer, 0, self.cur_layers_x[x_index] + self.max_span, 0, 1, 1, 0, c_white, out_alpha);
 		};		
+		
+		if (self.transitioning) {
+			for (var i = 0; i < array_length(self.next_scene.front_layers); i++) {
+				var x_index = i + array_length(self.next_scene.back_layers);
+				var _layer = self.next_scene.front_layers[i];
+				draw_sprite_ext(_layer, 0, self.nxt_layers_x[x_index], 0, 1, 1, 0, c_white, in_alpha);
+				draw_sprite_ext(_layer, 0, self.nxt_layers_x[x_index] + self.max_span, 0, 1, 1, 0, c_white, in_alpha);
+			};
+		};
 	};
 	
 	draw_debug = function(step_signal) {
@@ -312,9 +362,6 @@ function create_step_signal() {
 	
 	return [step, signal];
 };
-
-
-
 
 function create_scenery() {
 	return {

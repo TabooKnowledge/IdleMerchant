@@ -11,24 +11,17 @@ step_signal = travel.update(step_signal)
 step_signal = ledger.witness(step_signal);
 
 merchant.exist(step_signal);
+
+if (keyboard_check_pressed(ord("Z"))) {
+	scenery.start_distance = step_signal[STEP].distance;
+	scenery.transitioning = true;	
+};
+
 scenery.update(step_signal);
 
 print(ledger.record);
 if (debug_print) {
-	
 	debug_print = false;
 };
-if (keyboard_check_pressed(ord("Z"))) {
-	if (scenery.current_scene == scenery.scene_layouts.gold) {
-		scenery.current_scene = scenery.scene_layouts.birch;
-		scenery.set_x();
-	} else if (scenery.current_scene == scenery.scene_layouts.birch) {
-		scenery.current_scene = scenery.scene_layouts.fantasy;
-		scenery.set_x();
-	} else if (scenery.current_scene == scenery.scene_layouts.fantasy) {
-		scenery.current_scene = scenery.scene_layouts.gold;
-		scenery.set_x();
-	};
-	
-};
+
 
