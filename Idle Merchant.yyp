@@ -48,6 +48,8 @@
     {"id":{"name":"the_world","path":"rooms/the_world/the_world.yy",},},
     {"id":{"name":"macros","path":"scripts/macros/macros.yy",},},
     {"id":{"name":"main","path":"scripts/main/main.yy",},},
+    {"id":{"name":"snd_gentle_travel_2","path":"sounds/snd_gentle_travel_2/snd_gentle_travel_2.yy",},},
+    {"id":{"name":"snd_gentle_travel","path":"sounds/snd_gentle_travel/snd_gentle_travel.yy",},},
     {"id":{"name":"spr_birch_1","path":"sprites/spr_birch_1/spr_birch_1.yy",},},
     {"id":{"name":"spr_birch_2","path":"sprites/spr_birch_2/spr_birch_2.yy",},},
     {"id":{"name":"spr_birch_3","path":"sprites/spr_birch_3/spr_birch_3.yy",},},

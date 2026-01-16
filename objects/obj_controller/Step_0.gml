@@ -19,8 +19,11 @@ if (keyboard_check_pressed(ord("Z"))) {
 
 scenery.update(step_signal);
 
-print(ledger.record);
+music.update(step_signal);
+print(step_signal[STEP].offline_time);
+
 if (debug_print) {
+	
 	debug_print = false;
 };
 

@@ -1,29 +1,4 @@
 //Scripts
-#region Travel
-function Travel() constructor {
-	fatigue = 0;
-	fatigue_rate = 0.0001;
-	pace_multiplier = 0;
-	
-	update = function(step_signal) {
-		self.fatigue += step_signal[STEP].distance_delta * self.fatigue_rate;
-		self.fatigue = clamp(self.fatigue, 0, 1);
-		
-		 if (self.fatigue >= 1) {
-			 step_signal[SIGNAL].rest_request = true;
-			 self.fatigue = 0;
-		 };
-		 
-		 self.pace_multiplier = lerp(1, 0.7, self.fatigue);
-		 step_signal[SIGNAL].pace_multiplier = self.pace_multiplier;
-		 
-		 step_signal[SIGNAL].fatigue = self.fatigue; 
-		 
-		 return step_signal;
-	};
-};
-#endregion
-
 #region Journey
 function Journey() constructor {
 	time = 0;
@@ -96,6 +71,31 @@ function Journey() constructor {
 };
 #endregion
 
+#region Travel
+function Travel() constructor {
+	fatigue = 0;
+	fatigue_rate = 0.0001;
+	pace_multiplier = 0;
+	
+	update = function(step_signal) {
+		self.fatigue += step_signal[STEP].distance_delta * self.fatigue_rate;
+		self.fatigue = clamp(self.fatigue, 0, 1);
+		
+		 if (self.fatigue >= 1) {
+			 step_signal[SIGNAL].rest_request = true;
+			 self.fatigue = 0;
+		 };
+		 
+		 self.pace_multiplier = lerp(1, 0.7, self.fatigue);
+		 step_signal[SIGNAL].pace_multiplier = self.pace_multiplier;
+		 
+		 step_signal[SIGNAL].fatigue = self.fatigue; 
+		 
+		 return step_signal;
+	};
+};
+#endregion
+
 #region Merchant
 function Merchant() constructor {
 	age = 0;
@@ -106,7 +106,6 @@ function Merchant() constructor {
 	
 	persist = function(step_signal) {
 		var frame = (step_signal[STEP].distance * 5) mod 20;
-		
 		draw_sprite_ext(self.sprite, frame, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, 1, 1, 1, c_white, 1);
 	};
 };
@@ -117,7 +116,7 @@ function Scenery() constructor {
 	scene_layouts = create_scenery();
 	current_scene = self.scene_layouts.fantasy;
 	next_scene = self.scene_layouts.gold;
-	transition_length = 10;
+	transition_length = 2;
 	start_distance = 0;
 	transitioning = false;
 	t_alpha = 0;
@@ -140,6 +139,7 @@ function Scenery() constructor {
 				self.transitioning = false;
 				self.t_alpha = 0;
 				self.current_scene = self.next_scene;
+				self.set_x();
 			};
 		};
 	};
@@ -156,7 +156,7 @@ function Scenery() constructor {
 		};
 		
 		if (self.transitioning) {
-			var total_length = array_length(self.next_scene.back_layers) + array_length(self.next_scene.front_layers);
+			total_length = array_length(self.next_scene.back_layers) + array_length(self.next_scene.front_layers);
 			for (var i = 0; i < total_length; i++) {
 				var _depth = (i+1) / total_length;
 				self.nxt_layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
@@ -207,10 +207,10 @@ function Scenery() constructor {
 	draw_debug = function(step_signal) {
 		draw_sprite_stretched(spr_black_pixel, 0, 0, room_height, room_width, room_height);
 		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1, 0, c_white, .9);
-		draw_text(25, room_height + 100, string_format(step_signal[STEP].time, 0, 0));
-		draw_text(25, room_height + 75, string_format(step_signal[STEP].distance, 0, 0));
-		draw_text(25, room_height + 50, string_format(step_signal[STEP].offline_time, 0, 0));
-		draw_text(25, room_height + 25, string_format(step_signal[STEP].offline_distance, 0, 0));
+		//draw_text(25, room_height + 100, string_format(step_signal[STEP].time, 0, 0));
+		//draw_text(25, room_height + 75, string_format(step_signal[STEP].distance, 0, 0));
+		//draw_text(25, room_height + 50, string_format(step_signal[STEP].offline_time, 0, 0));
+		//draw_text(25, room_height + 25, string_format(step_signal[STEP].offline_distance, 0, 0));
 	};
 	
 };
@@ -254,9 +254,49 @@ function Ledger() constructor {
 		while (i < array_length(array) && array[i][0] <= param) {
 			var event = array[i][1];
 			array_push(self.record, event);
+			self.update_showing();
 			i++
 		};
 		return i;
+	};
+	
+	update_showing = function() {
+		var last_event = self.record[array_length(self.record) - 1];
+		array_push(self.showing, last_event);
+		while (array_length(self.showing) > 3) {
+			array_delete(self.showing, 0, 1);
+		};		
+	};
+	
+	draw = function() {
+		for (var i = 0; i < array_length(self.showing); i++) {
+			draw_text(20, room_height + ((i+1) * 25), self.showing[i]);
+		};
+		
+	};
+	
+};
+#endregion
+
+#region Music
+function Music() constructor {
+	all_music = load_music();
+	track_inst = undefined;
+	current_track_name = undefined;
+	track_length = undefined;
+	audio_last_pos = undefined;
+	
+	update = function() {
+		self.audio_last_pos = audio_sound_get_track_position(self.track_inst);
+	};
+	
+	load_track = function(name) {
+		var track_asset = variable_struct_get(self.all_music, name);
+		var track_inst = audio_play_sound(track_asset, 1, false);
+		self.track_inst = track_inst;
+		self.current_track_name = name;
+		self.track_length = audio_sound_length(track_asset);
+		
 	};
 };
 #endregion
@@ -280,36 +320,62 @@ function load(file_name) {
 	    return json_parse(json_string);
 };
 
-function store_state(step_signal) {
-	save(step_signal, "save.json");
+function save_components_state(components) {
+	return {
+		time: components.journey.time,
+		last_time: components.journey.last_time,
+        distance: components.journey.distance,
+		
+		fatigue: components.travel.fatigue,
+		
+		time_i: components.ledger.time_i,
+		dist_i: components.ledger.dist_i,
+		record: components.ledger.record,
+		showing: components.ledger.showing,
+		
+		current_track_name: components.music.current_track_name,
+		track_length: components.music.track_length,
+		audio_last_pos: components.music.audio_last_pos,
+	};
 };
 
-function load_components_state(step_signal, components) {
-	components.journey.distance = step_signal[STEP].distance;
-	components.journey.time = step_signal[STEP].time;
-	components.journey.last_time = step_signal[STEP].last_time;
+function load_components_state(save_data, components) {
+	components.journey.distance = save_data.distance;
+	components.journey.time = save_data.time;
+	components.journey.last_time = save_data.last_time;
 	
-	components.travel.fatigue = step_signal[SIGNAL].fatigue;
+	components.travel.fatigue = save_data.fatigue;
 	
-	components.ledger.time_i = step_signal[SIGNAL].time_i;
-	components.ledger.dist_i = step_signal[SIGNAL].dist_i;
-	components.ledger.record = step_signal[SIGNAL].record;
+	components.ledger.time_i = save_data.time_i;
+	components.ledger.dist_i = save_data.dist_i;
+	components.ledger.record = save_data.record;
+	components.ledger.showing = save_data.showing;
+	
+	components.music.current_track_name = save_data.current_track_name;
+	components.music.track_length = save_data.track_length;
+	components.music.audio_last_pos = save_data.audio_last_pos;
 };
 
 function restore_state(components) {
-	var step_signal = load("save.json");
-	if (step_signal != undefined) {
-		load_components_state(step_signal, components);
+	var save_data = load("save_data.json");
+	if (save_data != undefined) {
+		load_components_state(save_data, components);
 		
+		var step_signal = create_step_signal();
 		var now = date_current_datetime();
-		var offline_seconds = (now - step_signal[STEP].last_time) * SECONDS_PER_DAY;
-		step_signal[STEP].offline_time = offline_seconds;
+		var offline_seconds = (now - save_data.last_time) * SECONDS_PER_DAY;
 		
-		var start_distance = step_signal[STEP].distance;
+		var audio_asset = variable_struct_get(components.music.all_music, components.music.current_track_name);
+		var audio_pos = (components.music.audio_last_pos + offline_seconds) mod components.music.track_length;
+		var audio_inst = audio_play_sound(audio_asset, 0, false);
+		audio_sound_gain(audio_inst, 0, 0);
+		audio_sound_set_track_position(audio_inst, audio_pos);
+		audio_sound_gain(audio_inst, 1, 1000);
+		components.music.track_inst = audio_inst;
 		
-		
-		var chunk = 1;
+		var start_distance = save_data.distance;
 		var remaining = offline_seconds;
+		var chunk = 100;
 		
 		while (remaining > 0) {
 			step_signal[STEP].dt = min(chunk, remaining);
@@ -321,7 +387,10 @@ function restore_state(components) {
 			remaining -= step_signal[STEP].dt;
 		};
 		var end_distance = step_signal[STEP].distance;
+		
+		step_signal[STEP].offline_time = offline_seconds;
 		step_signal[STEP].offline_distance = end_distance - start_distance;
+		
 		return step_signal;
 	};
 	return undefined;
@@ -345,21 +414,15 @@ function create_step_signal() {
         day: 0,
         distance: 0,
         distance_delta: 0,
-        resting: false,
 		offline_time: 0,
         offline_distance: 0,
 		dt: 0
 	};
-	
 	var signal = {
 		pace_multiplier: 1,
         rest_request: false,
         fatigue: 0,
-		time_i: 0,
-		dist_i: 0,
-		record: []
 	};
-	
 	return [step, signal];
 };
 
@@ -415,4 +478,10 @@ function create_distance_events() {
 	return events;
 };
 
+function load_music() {
+	return {
+		gentle_travel: snd_gentle_travel,
+		gentle_travel_2: snd_gentle_travel_2,
+	};
+};
 #endregion
