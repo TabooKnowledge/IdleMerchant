@@ -3,7 +3,6 @@
 function Journey() constructor {
 	time = 0;
 	day = 0;
-	last_time = date_current_datetime();
 	offline_time = 0;
 	
 	distance = 0;
@@ -12,7 +11,7 @@ function Journey() constructor {
 	offline_distance = 0;
 	
 	resting = false;
-	rest_timer = 20;
+	rest_timer = 5;
 	rest_duration = 20;
 	
 	dt = 0;
@@ -64,7 +63,6 @@ function Journey() constructor {
 		step_signal[STEP].distance_delta = self.distance_delta;
 		step_signal[STEP].resting = self.resting;
 		step_signal[STEP].time = self.time;
-		step_signal[STEP].last_time = self.last_time;
 		step_signal[STEP].day = self.day;
 		return step_signal;
 	};
@@ -105,16 +103,16 @@ function Merchant() constructor {
 	};
 	
 	persist = function(step_signal) {
-		var frame = (step_signal[STEP].distance * 5) mod 20;
+		var frame = (step_signal[STEP].distance * 6) mod 20;
 		draw_sprite_ext(self.sprite, frame, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, 1, 1, 1, c_white, 1);
 	};
 };
 #endregion
 
 #region Scenery
-function Scenery() constructor {
+function Scenery() constructor {//Update save
 	scene_layouts = create_scenery();
-	current_scene = self.scene_layouts.fantasy;
+	current_scene = undefined;
 	next_scene = self.scene_layouts.gold;
 	transition_length = 2;
 	start_distance = 0;
@@ -122,11 +120,13 @@ function Scenery() constructor {
 	t_alpha = 0;
 	max_span = room_width;
 	scroll = 0;
+	cur_all_layers = [];
 	cur_layers_x = [];
+	nxt_all_layers = [];
 	nxt_layers_x = [];
 	
 	update = function(step_signal) {
-		self.scroll = step_signal[STEP].distance mod self.max_span;
+		self.scroll = step_signal[STEP].distance;
 		self.set_x();
 		self.transition(step_signal);
 	};
@@ -139,47 +139,48 @@ function Scenery() constructor {
 				self.transitioning = false;
 				self.t_alpha = 0;
 				self.current_scene = self.next_scene;
+				self.cur_all_layers = array_concat(self.current_scene.back_layers, self.current_scene.front_layers);
 				self.set_x();
 			};
 		};
 	};
 	
 	stage_scene = function(name) {
-		self.next_scene = variable_struct_get(self.scene_layouts, name);
+		if (self.current_scene == undefined) {
+			self.current_scene = variable_struct_get(self.scene_layouts, name);
+			self.cur_all_layers = array_concat(self.current_scene.back_layers, self.current_scene.front_layers);
+		} else {
+			self.next_scene = variable_struct_get(self.scene_layouts, name);
+			self.nxt_all_layers = array_concat(self.next_scene.back_layers, self.next_scene.front_layers);
+		};
 	};
 	
 	set_x = function() {
-		var total_length = array_length(self.current_scene.back_layers) + array_length(self.current_scene.front_layers);
-		for (var i = 0; i < total_length; i++) {
-			var _depth = (i+1) / total_length;
-			self.cur_layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
-		};
+		self.cur_layers_x = self.set_x_for_layers(self.cur_all_layers, self.cur_layers_x);	
 		
 		if (self.transitioning) {
-			total_length = array_length(self.next_scene.back_layers) + array_length(self.next_scene.front_layers);
-			for (var i = 0; i < total_length; i++) {
-				var _depth = (i+1) / total_length;
-				self.nxt_layers_x[i] = -(self.scroll * _depth * 30) mod self.max_span;
-			};
+			self. nxt_layers_x = self.set_x_for_layers(self.nxt_all_layers, self.nxt_layers_x);
 		};
+	};
+	
+	set_x_for_layers = function(layers, x_index_array) {
+		var total_length = array_length(layers);
+		for (var i = 0; i < array_length(layers); i++) {
+			var max_span = sprite_get_width(layers[i]);
+			var _depth = (i+1) / total_length;
+			x_index_array[i] = -(self.scroll * _depth * 25) mod max_span;
+		};
+		return x_index_array;
 	};
 	
 	draw_back = function(step_signal) {
 		var out_alpha = (self.transitioning == false) ? 1 : (1-self.t_alpha);
 		var in_alpha = self.t_alpha;
 		
-		for (var i = 0; i < array_length(self.current_scene.back_layers); i++) {
-			var _layer = self.current_scene.back_layers[i];
-			draw_sprite_ext(_layer, 0, self.cur_layers_x[i], 0, 1, 1, 0, c_white, out_alpha);
-			draw_sprite_ext(_layer, 0, self.cur_layers_x[i] + self.max_span, 0, 1, 1, 0, c_white, out_alpha);
-		};
+		self.draw_layers(self.current_scene.back_layers, self.cur_layers_x, 0, out_alpha);
 		
 		if (self.transitioning) {
-			for (var i = 0; i < array_length(self.next_scene.back_layers); i++) {
-				var _layer = self.next_scene.back_layers[i];
-				draw_sprite_ext(_layer, 0, self.nxt_layers_x[i], 0, 1, 1, 0, c_white, in_alpha);
-				draw_sprite_ext(_layer, 0, self.nxt_layers_x[i] + self.max_span, 0, 1, 1, 0, c_white, in_alpha);
-			};
+			self.draw_layers(self.next_scene.back_layers, self.nxt_layers_x, 0, in_alpha);
 		};
 	};	
 	
@@ -187,26 +188,27 @@ function Scenery() constructor {
 		var out_alpha = (self.transitioning == false) ? 1 : (1-self.t_alpha);
 		var in_alpha = self.t_alpha;
 		
-		for (var i = 0; i < array_length(self.current_scene.front_layers); i++) {
-			var x_index = i + array_length(self.current_scene.back_layers);
-			var _layer = self.current_scene.front_layers[i];
-			draw_sprite_ext(_layer, 0, self.cur_layers_x[x_index], 0, 1, 1, 0, c_white, out_alpha);
-			draw_sprite_ext(_layer, 0, self.cur_layers_x[x_index] + self.max_span, 0, 1, 1, 0, c_white, out_alpha);
-		};		
+		var index = array_length(self.current_scene.back_layers);
+		self.draw_layers(self.current_scene.front_layers, self.cur_layers_x, index, out_alpha);
 		
 		if (self.transitioning) {
-			for (var i = 0; i < array_length(self.next_scene.front_layers); i++) {
-				var x_index = i + array_length(self.next_scene.back_layers);
-				var _layer = self.next_scene.front_layers[i];
-				draw_sprite_ext(_layer, 0, self.nxt_layers_x[x_index], 0, 1, 1, 0, c_white, in_alpha);
-				draw_sprite_ext(_layer, 0, self.nxt_layers_x[x_index] + self.max_span, 0, 1, 1, 0, c_white, in_alpha);
-			};
+			index = array_length(self.next_scene.back_layers);
+			self.draw_layers(self.next_scene.front_layers, self.nxt_layers_x, index, in_alpha);
+		};
+	};
+	
+	draw_layers = function(layers, layers_index, start_index, alpha) {
+		for (var i = 0; i < array_length(layers); i++) {
+			var _layer = layers[i];
+			var max_span = sprite_get_width(_layer);
+			draw_sprite_ext(_layer, 0, layers_index[start_index+i], 0, 1, 1, 0, c_white, alpha);
+			draw_sprite_ext(_layer, 0, layers_index[start_index+i] + max_span, 0, 1, 1, 0, c_white, alpha);
 		};
 	};
 	
 	draw_debug = function(step_signal) {
 		draw_sprite_stretched(spr_black_pixel, 0, 0, room_height, room_width, room_height);
-		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1, 0, c_white, .9);
+		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1.25, 0, c_white, .9);
 		//draw_text(25, room_height + 100, string_format(step_signal[STEP].time, 0, 0));
 		//draw_text(25, room_height + 75, string_format(step_signal[STEP].distance, 0, 0));
 		//draw_text(25, room_height + 50, string_format(step_signal[STEP].offline_time, 0, 0));
@@ -270,11 +272,19 @@ function Ledger() constructor {
 	
 	draw = function() {
 		for (var i = 0; i < array_length(self.showing); i++) {
-			draw_text(20, room_height + ((i+1) * 25), self.showing[i]);
+			switch (i) {
+				case 0:
+				draw_text_ext(20, room_height + 25, self.showing[i], 20, 160);
+				break;
+				case 1:
+				draw_text_ext(20, room_height + 70, self.showing[i], 20, 160);
+				break;
+				case 2:
+				draw_text_ext(20, room_height + 120, self.showing[i], 20, 160);
+				break;
+			};
 		};
-		
 	};
-	
 };
 #endregion
 
@@ -285,14 +295,19 @@ function Music() constructor {
 	current_track_name = undefined;
 	track_length = undefined;
 	audio_last_pos = undefined;
+	audio_pending = false;
 	
 	update = function() {
-		self.audio_last_pos = audio_sound_get_track_position(self.track_inst);
+		if (self.track_inst != undefined) {
+			self.audio_last_pos = audio_sound_get_track_position(self.track_inst);
+		};
+		
 	};
 	
 	load_track = function(name) {
 		var track_asset = variable_struct_get(self.all_music, name);
 		var track_inst = audio_play_sound(track_asset, 1, false);
+		audio_sound_gain(track_inst, .2, 0);
 		self.track_inst = track_inst;
 		self.current_track_name = name;
 		self.track_length = audio_sound_length(track_asset);
@@ -323,7 +338,7 @@ function load(file_name) {
 function save_components_state(components) {
 	return {
 		time: components.journey.time,
-		last_time: components.journey.last_time,
+		last_time: date_current_datetime(),
         distance: components.journey.distance,
 		
 		fatigue: components.travel.fatigue,
@@ -336,13 +351,13 @@ function save_components_state(components) {
 		current_track_name: components.music.current_track_name,
 		track_length: components.music.track_length,
 		audio_last_pos: components.music.audio_last_pos,
+		audio_pending: components.music.audio_pending,
 	};
 };
 
 function load_components_state(save_data, components) {
 	components.journey.distance = save_data.distance;
 	components.journey.time = save_data.time;
-	components.journey.last_time = save_data.last_time;
 	
 	components.travel.fatigue = save_data.fatigue;
 	
@@ -354,6 +369,7 @@ function load_components_state(save_data, components) {
 	components.music.current_track_name = save_data.current_track_name;
 	components.music.track_length = save_data.track_length;
 	components.music.audio_last_pos = save_data.audio_last_pos;
+	components.music.audio_pending = save_data.audio_pending;
 };
 
 function restore_state(components) {
@@ -365,13 +381,23 @@ function restore_state(components) {
 		var now = date_current_datetime();
 		var offline_seconds = (now - save_data.last_time) * SECONDS_PER_DAY;
 		
+		var audio_inst = undefined;
 		var audio_asset = variable_struct_get(components.music.all_music, components.music.current_track_name);
-		var audio_pos = (components.music.audio_last_pos + offline_seconds) mod components.music.track_length;
-		var audio_inst = audio_play_sound(audio_asset, 0, false);
-		audio_sound_gain(audio_inst, 0, 0);
-		audio_sound_set_track_position(audio_inst, audio_pos);
-		audio_sound_gain(audio_inst, 1, 1000);
-		components.music.track_inst = audio_inst;
+		if (audio_asset != undefined) {
+			var audio_pos = (components.music.audio_last_pos + offline_seconds) mod components.music.track_length;
+			audio_inst = audio_play_sound(audio_asset, 0, false);
+			audio_sound_gain(audio_inst, 0, 0);
+			audio_sound_set_track_position(audio_inst, audio_pos);
+			audio_sound_gain(audio_inst, .2, 9000);
+			components.music.track_inst = audio_inst;
+		};
+		
+		if (audio_inst == -1 or audio_inst == undefined) {
+			print("Audio Asset: " + string(audio_asset));
+			print("Audio Name: " + string(components.music.current_track_name));
+			print("Audio Inst ID: " + string(audio_inst));
+			step_signal[SIGNAL].audio_pending = true;
+		};
 		
 		var start_distance = save_data.distance;
 		var remaining = offline_seconds;
@@ -422,6 +448,7 @@ function create_step_signal() {
 		pace_multiplier: 1,
         rest_request: false,
         fatigue: 0,
+		audio_pending: false,
 	};
 	return [step, signal];
 };
@@ -437,7 +464,7 @@ function create_scenery() {
 			front_layers: [spr_gold_5]
 		},
 		fantasy: {
-			back_layers: [spr_fantasy_1, spr_fantasy_2, spr_fantasy_6, spr_fantasy_3, spr_fantasy_7, spr_fantasy_4],
+			back_layers: [spr_ai_blue_sky, spr_fantasy_2, spr_fantasy_6, spr_fantasy_3, spr_fantasy_7, spr_fantasy_4],
 			front_layers: [spr_fantasy_5,]
 		},
 		mountain_sunset: {
@@ -450,6 +477,10 @@ function create_scenery() {
 		summer: {
 			back_layers: [spr_summer_01, spr_summer_02, spr_summer_03, spr_summer_04],
 			front_layers: [spr_summer_05,]
+		},
+		expir: {
+			back_layers: [spr_ai_blue_sky, spr_ai_mountain_a, spr_ai_trees_a, spr_ai_mountain_path],
+			front_layers: []
 		},
 	};
 };

@@ -1,5 +1,6 @@
 //Step event
 if (keyboard_check(ord("S"))) {
+	//travel.fatigue = 1;
 	step_signal[STEP].dt = (delta_time / MICROSECONDS_PER_SECOND) * 500;
 } else {
 	step_signal[STEP].dt = delta_time / MICROSECONDS_PER_SECOND;
@@ -19,8 +20,9 @@ if (keyboard_check_pressed(ord("Z"))) {
 
 scenery.update(step_signal);
 
-music.update(step_signal);
-print(step_signal[STEP].offline_time);
+music.update();
+
+print(travel.fatigue);
 
 if (debug_print) {
 	
