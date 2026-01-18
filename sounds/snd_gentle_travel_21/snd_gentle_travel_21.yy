@@ -1,6 +1,6 @@
 {
   "$GMSound":"",
-  "%Name":"snd_gentle_travel_2",
+  "%Name":"snd_gentle_travel_21",
   "audioGroupId":{
     "name":"audiogroup_default",
     "path":"audiogroups/audiogroup_default",
@@ -9,8 +9,8 @@
   "bitRate":128,
   "compression":0,
   "conversionMode":0,
-  "duration":153.81914,
-  "name":"snd_gentle_travel_2",
+  "duration":169.75201,
+  "name":"snd_gentle_travel_21",
   "parent":{
     "name":"Sounds",
     "path":"folders/Sounds.yy",
@@ -19,7 +19,7 @@
   "resourceType":"GMSound",
   "resourceVersion":"2.0",
   "sampleRate":44100,
-  "soundFile":"snd_gentle_travel_2.mp3",
+  "soundFile":"snd_gentle_travel_21.mp3",
   "type":0,
   "volume":1.0,
 }

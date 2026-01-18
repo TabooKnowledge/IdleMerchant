@@ -4,3 +4,5 @@
 #macro HOURS_PER_DAY 24
 #macro STEP 0
 #macro SIGNAL 1
+#macro SMALL_CHUNK 30
+#macro LARGE_CHUNK 100
