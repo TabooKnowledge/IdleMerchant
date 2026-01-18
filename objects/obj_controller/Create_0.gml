@@ -15,4 +15,3 @@ step_signal = restore_state(components);
 if (step_signal.data[SIGNAL].audio_pending) {
 	music.load_track("gentle_travel_3");
 };
-debug_print = true;
