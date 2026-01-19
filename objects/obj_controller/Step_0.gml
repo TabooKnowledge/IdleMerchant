@@ -9,7 +9,15 @@ if (keyboard_check(ord("S"))) {
 if (keyboard_check_pressed(ord("Z"))) {
 	scenery.start_distance = step_signal.data[STEP].distance;
 	scenery.transitioning = true;
-	scenery.load_scene("gold", "next");
+	if (scenery.current_scene.name == "birch") {
+		scenery.load_scene("fantasy", "next");
+	} else if (scenery.current_scene.name == "fantasy") {
+		scenery.load_scene("gold", "next");
+	} else if (scenery.current_scene.name == "gold") {
+		scenery.load_scene("summer", "next");
+	} else if (scenery.current_scene.name == "summer") {
+		scenery.load_scene("birch", "next");
+	};
 };
 
 step_signal = journey.tick(step_signal);

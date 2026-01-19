@@ -1,4 +1,4 @@
-//Scripts
+//All Scripts
 #region Journey
 function Journey() constructor {
 	time = 0;
@@ -126,8 +126,8 @@ function Merchant() constructor {
 	};
 	
 	persist = function(step_signal) {
-		var frame = (step_signal.data[STEP].distance * 6) mod 20;
-		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, 4500, 1, 1, false); 
+		var frame = (step_signal.data[STEP].distance * 5) mod 20;
+		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, MID_DEPTH, frame, 1, false); 
 		array_push(step_signal.draw_items, note);
 	};
 };
@@ -145,13 +145,16 @@ function Scenery() constructor {
 	t_alpha = 0;
 	
 	scroll = 0;
-	cur_layers = [];
-	nxt_layers = [];
+	cur_frnt_layers = [];
+	cur_bck_layers = [];
+	nxt_frnt_layers = [];
+	nxt_bck_layers = [];
 	
 	update = function(step_signal) {
 		self.scroll = step_signal.data[STEP].distance;
-		self.set_x(step_signal);
 		self.transition(step_signal);
+		self.emit_draw_notes(step_signal);
+		
 	};
 	
 	transition = function(step_signal) {
@@ -159,55 +162,65 @@ function Scenery() constructor {
 			self.t_alpha = (step_signal.data[STEP].distance - self.start_distance) / self.transition_length;
 			self.t_alpha = clamp(self.t_alpha, 0, 1);
 			if (self.t_alpha >= 1) {
-				self.transitioning = false;
-				self.t_alpha = 0;
-				self.current_scene = self.next_scene;
-				self.cur_layers = array_concat(self.current_scene.back_layers, self.current_scene.front_layers);
-				self.set_x(step_signal);
+				self.complete_transition();
 			};
 		};
+	};
+	
+	complete_transition = function() {
+		self.transitioning = false;
+		self.t_alpha = 0;
+		self.current_scene = self.next_scene;
+		self.cur_frnt_layers = self.nxt_frnt_layers;
+		self.cur_bck_layers = self.nxt_bck_layers;
+		self.nxt_frnt_layers = [];
+		self.nxt_bck_layers = [];
+		self.next_scene = {};
+		//self.emit_draw_notes(step_signal);
 	};
 	
 	load_scene = function(name, stage) {
 		if (stage == "current") {
 			self.current_scene = variable_struct_get(self.all_scenes, name);
-			self.load_assets(self.current_scene.front_layers);
-			self.load_assets(self.current_scene.back_layers);
-			self.cur_layers = array_concat(self.current_scene.back_layers, self.current_scene.front_layers);
+			self.load_assets(self.current_scene.front_layers, self.cur_frnt_layers);
+			self.load_assets(self.current_scene.back_layers, self.cur_bck_layers);
 			
 		} else {
 			self.next_scene = variable_struct_get(self.all_scenes, name);
-			self.load_assets(self.next_scene.front_layers);
-			self.load_assets(self.next_scene.back_layers);
-			self.nxt_layers = array_concat(self.next_scene.back_layers, self.next_scene.front_layers);
+			self.load_assets(self.next_scene.front_layers, self.nxt_frnt_layers);
+			self.load_assets(self.next_scene.back_layers, self.nxt_bck_layers);
 		};
 	};
 	
-	load_assets = function(_layers) {
+	load_assets = function(_layers, storage) {
+		print(_layers);
 		for (var i = 0; i < array_length(_layers); i++) {
-			_layers[i] = asset_get_index(_layers[i]);
+			storage[i] = asset_get_index(_layers[i]);
 		};
+		print(storage);
 	};
 	
-	set_x = function(step_signal) {
+	emit_draw_notes = function(step_signal) {
 		var out_alpha = (self.transitioning == false) ? 1 : (1-self.t_alpha);
 		var in_alpha = self.t_alpha;
-		
-		self.emit_draw_notes(self.cur_layers, step_signal, out_alpha);	
+		self.define_draw_notes(self.cur_bck_layers, step_signal, BACK_DEPTH, out_alpha);
+		self.define_draw_notes(self.cur_frnt_layers, step_signal, FRONT_DEPTH, out_alpha);	
 		
 		if (self.transitioning) {
-			self.emit_draw_notes(self.nxt_layers, step_signal, in_alpha);
+			self.define_draw_notes(self.nxt_bck_layers, step_signal, BACK_DEPTH, in_alpha);
+			self.define_draw_notes(self.nxt_frnt_layers, step_signal, FRONT_DEPTH, in_alpha);
 		};
 	};
 	
-	emit_draw_notes = function(layers, step_signal, alpha) {
+	define_draw_notes = function(layers, step_signal, _depth, alpha) {
+		
 		var total_length = array_length(layers);
 		for (var i = 0; i < array_length(layers); i++) {
 			var _layer = layers[i];
 			var max_span = sprite_get_width(_layer);
-			var _depth = (i+1) / total_length;
-			var _x = -(self.scroll * _depth * 25) mod max_span;
-			array_push(step_signal.draw_items, create_draw_note(_layer, _x, 0, i * 1000, 1, alpha, true));
+			var _scroll_mult = (i+1) / total_length * 25;
+			var _x = -(self.scroll * _scroll_mult) mod max_span;
+			array_push(step_signal.draw_items, create_draw_note(_layer, _x, 0, _depth + (i*100), 0, alpha, true));
 		};
 		
 	};
@@ -552,13 +565,13 @@ function create_actors() {
 	};
 };
 
-function create_draw_note(sprite, x, y, z, speed, alpha, tile_x=false) {
+function create_draw_note(sprite, x, y, z, frame, alpha, tile_x=false) {
 	return {
 		sprite: sprite,
 		x: x,
 		y: y,
 		z: z,
-		speed: speed,
+		frame: frame,
 		alpha: alpha,
 		tile_x: tile_x
 	};
@@ -574,11 +587,11 @@ function draw_all(step_signal) {
 			continue;
 		};
 			
-		draw_sprite_ext(item.sprite, 0, item.x, item.y, 1, 1, 0, c_white, item.alpha);
+		draw_sprite_ext(item.sprite, item.frame, item.x, item.y, 1, 1, 0, c_white, item.alpha);
 		
 		if (item.tile_x) {
 			var width = sprite_get_width(item.sprite);
-			draw_sprite_ext(item.sprite, 0, item.x + width, item.y, 1, 1, 0, c_white, item.alpha);
+			draw_sprite_ext(item.sprite, item.frame, item.x + width, item.y, 1, 1, 0, c_white, item.alpha);
 		};
 	};
 	step_signal.draw_items = [];

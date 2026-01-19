@@ -6,7 +6,7 @@ travel = new Travel();
 moment = new Moment();
 ledger = new Ledger();
 scenery = new Scenery();
-scenery.load_scene("birch", "current");
+//scenery.load_scene("birch", "current");
 music = new Music();
 components = {journey:journey, merchant:merchant, travel:travel, ledger:ledger, scenery:scenery, music:music};
 step_signal = create_step_signal();
