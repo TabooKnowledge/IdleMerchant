@@ -1,13 +1,13 @@
 //Step event
 if (keyboard_check(ord("S"))) {
 	//travel.fatigue = 1;
-	step_signal.data[STEP].dt = (delta_time / MICROSECONDS_PER_SECOND) * 500;
+	frame.data[STEP].dt = (delta_time / MICROSECONDS_PER_SECOND) * 20;
 } else {
-	step_signal.data[STEP].dt = delta_time / MICROSECONDS_PER_SECOND;
+	frame.data[STEP].dt = delta_time / MICROSECONDS_PER_SECOND;
 };
 
 if (keyboard_check_pressed(ord("Z"))) {
-	scenery.start_distance = step_signal.data[STEP].distance;
+	scenery.start_distance = frame.data[STEP].distance;
 	scenery.transitioning = true;
 	if (scenery.current_scene.name == "birch") {
 		scenery.load_scene("fantasy", "next");
@@ -20,10 +20,10 @@ if (keyboard_check_pressed(ord("Z"))) {
 	};
 };
 
-step_signal = journey.tick(step_signal);
-step_signal = travel.update(step_signal);
-step_signal = moment.update(step_signal);
-step_signal = ledger.witness(step_signal);
-merchant.exist(step_signal);
-scenery.update(step_signal);
+frame = journey.tick(frame);
+frame = travel.update(frame);
+frame = moment.update(frame);
+frame = ledger.witness(frame);
+merchant.exist(frame);
+scenery.update(frame);
 music.update();

@@ -1,5 +1,5 @@
 //Draw event
-draw_all(step_signal);
-scenery.draw_debug(step_signal);
-ledger.draw();
+draw_all(frame);
+scenery.draw_debug(frame);
+//ledger.draw();
 
