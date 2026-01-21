@@ -18,7 +18,7 @@ function Journey() constructor {
 	
 	
 	tick = function(frame) {
-		self.dt = frame.data[STEP].dt
+		self.dt = frame.data.step.dt
 		self.pass_time();
 		self.rest(frame);
 		self.move_distance(frame);
@@ -42,26 +42,26 @@ function Journey() constructor {
 	};
 	
 	check_resting = function(frame) {
-		if (frame.data[SIGNAL].rest_request) {
+		if (frame.data.signal.rest_request) {
 			self.resting = true
-			frame.data[SIGNAL].rest_request = false;
+			frame.data.signal.rest_request = false;
 		};
 	};
 	
 	move_distance = function(frame) {
 		self.distance_delta = 0;
 		if (!self.resting) {
-			self.distance_delta = self.pace * frame.data[SIGNAL].pace_multiplier * self.dt;
+			self.distance_delta = self.pace * frame.data.signal.pace_multiplier * self.dt;
 			self.distance += self.distance_delta;
 		};
 	};
 	
 	update_step_signal = function(frame) {
-		frame.data[STEP].distance = self.distance;
-		frame.data[STEP].distance_delta = self.distance_delta;
-		frame.data[STEP].resting = self.resting;
-		frame.data[STEP].time = self.time;
-		frame.data[STEP].day = self.day;
+		frame.data.step.distance = self.distance;
+		frame.data.step.distance_delta = self.distance_delta;
+		frame.data.step.resting = self.resting;
+		frame.data.step.time = self.time;
+		frame.data.step.day = self.day;
 		return frame;
 	};
 };
@@ -70,40 +70,40 @@ function Journey() constructor {
 #region Travel
 function Travel() constructor {
 	fatigue = 0;
-	fatigue_rate = 0.0001;
+	fatigue_rate = 0.01;
 	pace_multiplier = 0;
 	
 	update = function(frame) {
-		self.fatigue += frame.data[STEP].distance_delta * self.fatigue_rate;
+		self.fatigue += frame.data.step.distance_delta * self.fatigue_rate;
 		self.fatigue = clamp(self.fatigue, 0, 1);
 		
 		 if (self.fatigue >= 1) {
-			 frame.data[SIGNAL].rest_request = true;
+			 frame.data.signal.rest_request = true;
 			 self.fatigue = 0;
 		 };
 		 
 		 self.pace_multiplier = lerp(1, 0.7, self.fatigue);
-		 frame.data[SIGNAL].pace_multiplier = self.pace_multiplier;
+		 frame.data.signal.pace_multiplier = self.pace_multiplier;
 		 
-		 frame.data[SIGNAL].fatigue = self.fatigue; 
+		 frame.data.signal.fatigue = self.fatigue; 
 		 
 		 return frame;
 	};
 };
 #endregion
 
+#region Moment
 function Moment() constructor {
 	all_actors = create_actors();
 	active = undefined;
 	cooldown = 0;
-	chance_per_sec = .01;
+	chance_per_sec = .5;
 	
 	update = function(frame) {
-		var dt = frame.data[STEP].dt;
-		frame.data[SIGNAL].moment = undefined;
+		var dt = frame.data.step.dt;
+		frame.data.signal.moment = undefined;
 		
 		self.cooldown = (self.cooldown > 0) ? self.cooldown - dt : 0;
-		print(self.cooldown);
 		
 		if (self.active != undefined) {
 			self.tick_active(frame, dt);
@@ -113,41 +113,62 @@ function Moment() constructor {
 		if (self.cooldown <= 0) {
 			if (random(1) < (self.chance_per_sec * dt)) {
 				self.start_moment(frame);
-				self.cooldown = random_range(10, 11);
+				self.cooldown = random_range(10, 30);
 			};
 		};
 		return frame;
 	};
 	
 	start_moment = function(frame) {
-		var actor = self.all_actors.bird;
+		var actor = self.all_actors.woodcutter;
 		var spr = asset_get_index(actor.asset_name);
-		
 		var _y = random_range(12, room_height * .70);
-		var _x = choose(0 - sprite_get_width(spr), room_width);
-		var vx = (_x > 0) ? -50 : 50;
+		var _x = 0;
+		var x0 = 0;
+		var vx = 0;
+		var dur = 0;
+			
+		if (actor.mode == "independent") {
+			_y = random_range(12, room_height * .70);
+			_x = choose(0 - sprite_get_width(spr), room_width);
+			x0 = _x;
+			vx = (_x > 0) ? -50 : 50;
+			dur = (room_width + sprite_get_width(spr) * 2) / abs(vx);
+		} else {
+			_y = room_height * .65;
+			_x = room_width;
+			x0 = _x;
+			vx = -1;
+			dur = 3000;
+		};
 		
-		var dur = (room_width + sprite_get_width(spr) * 2) / abs(vx);
 		
 		self.active = {
 			type: "bird",
 			sprite: spr,
-			z: BACK_DEPTH + 100,
+			z: BACK_DEPTH + 30,
 			x: _x,
+			x0: x0,
 			y: _y,
 			vx: vx,
 			t: 0,
-			dur: dur
+			dur: dur,
+			dist_at_spawn: frame.data.step.distance
 		};
-		frame.data[SIGNAL].moment = "bird"
+		frame.data.signal.moment = "bird";
 		
 	};
 	
 	tick_active = function(frame, dt) {
 		var moment = self.active;
-
+		var _speed = depth_speed_conversion(moment.z)
 		moment.t += dt;
-		moment.x += moment.vx * dt;
+		if (moment.vx == -1) {
+			moment.x = moment.x0 - (frame.data.step.distance - moment.dist_at_spawn) * _speed;
+		} else {
+			moment.x += moment.vx * dt;
+		};
+		
 
 		var frames = max(1, sprite_get_number(moment.sprite));
 		var frame_index = floor(moment.t * 10) mod frames;
@@ -157,7 +178,7 @@ function Moment() constructor {
 			create_draw_note(moment.sprite, moment.x, moment.y, moment.z, frame_index, 1, false)
 		);
 
-		frame.data[SIGNAL].moment = moment.type;
+		frame.data.signal.moment = moment.type;
 
 		if (moment.t >= moment.dur) {
 			self.active = undefined;
@@ -166,18 +187,19 @@ function Moment() constructor {
 		};
 	};
 };
+#endregion
 
 #region Merchant
 function Merchant() constructor {
 	age = 0;
-	sprite = spr_merchant_1;
+	sprite = spr_merchant_4;
 	exist = function(frame) {
-		self.age = frame.data[STEP].time;
+		self.age = frame.data.step.time;
 		self.persist(frame);
 	};
 	
 	persist = function(frame) {
-		var frame_index = (frame.data[STEP].distance * 5) mod 20;
+		var frame_index = (frame.data.step.distance * 8) mod 24;
 		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, MID_DEPTH, frame_index, 1, false); 
 		array_push(frame.draw_items, note);
 	};
@@ -187,22 +209,26 @@ function Merchant() constructor {
 #region Scenery
 function Scenery() constructor {
 	all_scenes = create_scenery();
-	current_scene = undefined;
-	next_scene = self.all_scenes.gold;
 	
-	transition_length = 4;
-	start_distance = 0;
-	transitioning = false;
-	t_alpha = 0;
-	
-	scroll = 0;
+	cur_scene = undefined;
+	cur_scene_name = undefined;
 	cur_frnt_layers = [];
 	cur_bck_layers = [];
+	
+	nxt_scene = self.all_scenes.gold;
+	nxt_scene_name = undefined;
 	nxt_frnt_layers = [];
 	nxt_bck_layers = [];
 	
+	transitioning = false;
+	transition_length = 4;
+	start_distance = 0;
+	t_alpha = 0;
+	
+	scroll = 0;
+	
 	update = function(frame) {
-		self.scroll = frame.data[STEP].distance;
+		self.scroll = frame.data.step.distance;
 		self.transition(frame);
 		self.emit_draw_notes(frame);
 		
@@ -210,8 +236,7 @@ function Scenery() constructor {
 	
 	transition = function(frame) {
 		if (self.transitioning) {
-			self.t_alpha = (frame.data[STEP].distance - self.start_distance) / self.transition_length;
-			print("Alpha: " + string(self.t_alpha));
+			self.t_alpha = (frame.data.step.distance - self.start_distance) / self.transition_length;
 			self.t_alpha = clamp(self.t_alpha, 0, 1);
 			if (self.t_alpha >= 1) {
 				self.complete_transition();
@@ -222,33 +247,35 @@ function Scenery() constructor {
 	complete_transition = function() {
 		self.transitioning = false;
 		self.t_alpha = 0;
-		self.current_scene = self.next_scene;
+		self.cur_scene = self.nxt_scene;
+		self.cur_scene_name = self.nxt_scene_name;
 		self.cur_frnt_layers = self.nxt_frnt_layers;
 		self.cur_bck_layers = self.nxt_bck_layers;
 		self.nxt_frnt_layers = [];
 		self.nxt_bck_layers = [];
-		self.next_scene = {};
+		self.nxt_scene = undefined;
+		self.nxt_scene_name = undefined;
 	};
 	
 	load_scene = function(name, stage) {
 		if (stage == "current") {
-			self.current_scene = variable_struct_get(self.all_scenes, name);
-			self.load_assets(self.current_scene.front_layers, self.cur_frnt_layers);
-			self.load_assets(self.current_scene.back_layers, self.cur_bck_layers);
+			self.cur_scene = variable_struct_get(self.all_scenes, name);
+			self.cur_scene_name = name;
+			self.load_assets(self.cur_scene.front_layers, self.cur_frnt_layers);
+			self.load_assets(self.cur_scene.back_layers, self.cur_bck_layers);
 			
 		} else {
-			self.next_scene = variable_struct_get(self.all_scenes, name);
-			self.load_assets(self.next_scene.front_layers, self.nxt_frnt_layers);
-			self.load_assets(self.next_scene.back_layers, self.nxt_bck_layers);
+			self.nxt_scene = variable_struct_get(self.all_scenes, name);
+			self.nxt_scene_name = name;
+			self.load_assets(self.nxt_scene.front_layers, self.nxt_frnt_layers);
+			self.load_assets(self.nxt_scene.back_layers, self.nxt_bck_layers);
 		};
 	};
 	
 	load_assets = function(_layers, storage) {
-		print(_layers);
 		for (var i = 0; i < array_length(_layers); i++) {
 			storage[i] = asset_get_index(_layers[i]);
 		};
-		print(storage);
 	};
 	
 	emit_draw_notes = function(frame) {
@@ -264,14 +291,13 @@ function Scenery() constructor {
 	};
 	
 	define_draw_notes = function(layers, frame, _depth, alpha) {
-		
 		var total_length = array_length(layers);
 		for (var i = 0; i < array_length(layers); i++) {
 			var _layer = layers[i];
 			var max_span = sprite_get_width(_layer);
-			var _scroll_mult = (i+1) / total_length * 25;
-			var _x = -(self.scroll * _scroll_mult) mod max_span;
-			array_push(frame.draw_items, create_draw_note(_layer, _x, 0, _depth + (i*100), 0, alpha, true));
+			var _speed = depth_speed_conversion(_depth + (i*10));
+			var _x = -(frame.data.step.distance * _speed) mod max_span;
+			array_push(frame.draw_items, create_draw_note(_layer, _x, 0, _depth + (i*10), 0, alpha, true));
 		};
 		
 	};
@@ -281,11 +307,11 @@ function Scenery() constructor {
 		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1.25, 0, c_white, .9);
 		
 		draw_text(25, room_height + 25, "Time: ");
-		draw_text(75, room_height + 25, string_format(frame.data[STEP].time, 0, 0));
+		draw_text(75, room_height + 25, string_format(frame.data.step.time, 0, 0));
 		draw_text(25, room_height + 50, "Distance: ");
-		draw_text(110, room_height + 50, string_format(frame.data[STEP].distance, 0, 0));
+		draw_text(110, room_height + 50, string_format(frame.data.step.distance, 0, 0));
 		draw_text(25, room_height + 75, "Away Time: ");
-		draw_text(120, room_height + 75, string_format(frame.data[SIGNAL].offline_time, 0, 0));		
+		draw_text(120, room_height + 75, string_format(frame.data.signal.offline_time, 0, 0));		
 	};
 	
 };
@@ -308,22 +334,17 @@ function Ledger() constructor {
 
 	witness = function(frame) {
 		if (self.time_i < array_length(self.time_events)) {
-			var time = frame.data[STEP].time;
+			var time = frame.data.step.time;
 			var array = self.time_events;
 			self.time_i = self.update_events(time, array, self.time_i);
 		};
 		
 		if (self.dist_i < array_length(self.distance_events)) {
-			var distance = frame.data[STEP].distance;
+			var distance = frame.data.step.distance;
 			var array = self.distance_events;
 			self.dist_i = self.update_events(distance, array, self.dist_i);
 		};
-		
-		frame.data[SIGNAL].time_i = self.time_i;
-		frame.data[SIGNAL].dist_i = self.dist_i;
-		frame.data[SIGNAL].record = self.record;
-		return frame;
-	}
+	};
 			
 	update_events = function(param, array, i) {
 		while (i < array_length(array) && array[i][0] <= param) {
@@ -421,8 +442,8 @@ function save_components_state(components) {
 		record: components.ledger.record,
 		showing: components.ledger.showing,
 		
-		current_scene: components.scenery.current_scene,
-		next_scene: components.scenery.next_scene,
+		cur_scene_name: components.scenery.cur_scene_name,
+		nxt_scene_name: components.scenery.nxt_scene_name,
 		
 		current_track_name: components.music.current_track_name,
 		track_length: components.music.track_length,
@@ -447,18 +468,18 @@ function restore_state(components) {
 		var chunk = LARGE_CHUNK;
 		
 		while (remaining > 0) {
-			frame.data[STEP].dt = min(chunk, remaining);
+			frame.data.step.dt = min(chunk, remaining);
 			
 			frame = components.journey.tick(frame);
 			frame = components.travel.update(frame);
-			frame = components.ledger.witness(frame);
+			components.ledger.witness(frame);
 			
-			remaining -= frame.data[STEP].dt;
+			remaining -= frame.data.step.dt;
 		};
-		var end_distance = frame.data[STEP].distance;
+		var end_distance = frame.data.step.distance;
 		
-		frame.data[SIGNAL].offline_time = offline_seconds;
-		frame.data[SIGNAL].offline_distance = end_distance - start_distance;
+		frame.data.signal.offline_time = offline_seconds;
+		frame.data.signal.offline_distance = end_distance - start_distance;
 		
 		return frame;
 	};
@@ -476,9 +497,11 @@ function load_components_state(save_data, components) {
 	components.ledger.record = save_data.record;
 	components.ledger.showing = save_data.showing;
 	
-	components.scenery.current_scene = save_data.current_scene;
-	components.scenery.next_scene = save_data.next_scene;
-	components.scenery.load_scene(components.scenery.current_scene.name, "current");
+	components.scenery.load_scene(save_data.cur_scene_name, "current");
+	print(save_data.cur_scene_name);
+	if (save_data.nxt_scene_name != undefined) {
+		components.scenery.load_scene(save_data.nxt_scene_name, "next");
+	};
 	
 	components.music.current_track_name = save_data.current_track_name;
 	components.music.track_length = save_data.track_length;
@@ -502,7 +525,7 @@ function load_audio_state(components, frame, offline_seconds) {
 		print("Audio Asset: " + string(audio_asset));
 		print("Audio Name: " + string(components.music.current_track_name));
 		print("Audio Inst ID: " + string(audio_inst));
-		frame.data[SIGNAL].audio_pending = true;
+		frame.data.signal.audio_pending = true;
 	};
 	return frame;
 };
@@ -515,15 +538,15 @@ function print(_strng) {
 
 function create_step_signal() {
 	return {
-		data: [
-			{
+		data: {
+			step: {
 				time: 0,
 			    day: 0,
 			    distance: 0,
 			    distance_delta: 0,
 				dt: 0
 			},
-			{
+			signal: {
 				offline_time: 0,
 		        offline_distance: 0,
 				pace_multiplier: 1,
@@ -531,7 +554,7 @@ function create_step_signal() {
 		        fatigue: 0,
 				audio_pending: false,
 			},
-		],
+		},
 		draw_items: []
 	};
 };
@@ -614,7 +637,11 @@ function create_actors() {
 	return {
 		bird: {
 			asset_name: "spr_black_bird",
-			depth: 3000,
+			mode: "independent"
+		},
+		woodcutter: {
+			asset_name: "spr_woodcutter",
+			mode: "static"
 		},
 	};
 };
@@ -649,6 +676,12 @@ function draw_all(frame) {
 		};
 	};
 	frame.draw_items = [];
+};
+
+function depth_speed_conversion(_depth) {
+	var units = clamp(_depth / FRONT_DEPTH, 0, 1);
+	units = units * units;
+	return lerp(0.15, 1.2, units) * SPEED_MULT;
 };
 
 #endregion

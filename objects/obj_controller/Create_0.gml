@@ -13,10 +13,10 @@ components = {journey:journey, merchant:merchant, travel:travel, ledger:ledger, 
 frame = create_step_signal();
 frame = restore_state(components);
 
-if (frame.data[SIGNAL].audio_pending) {
+if (frame.data.signal.audio_pending) {
 	music.load_track("gentle_travel_3");
 };
 
-if (scenery.current_scene == undefined) {
+if (scenery.cur_scene == undefined) {
 	scenery.load_scene("birch", "current");
 };

@@ -1,21 +1,21 @@
 //Step event
 if (keyboard_check(ord("S"))) {
 	//travel.fatigue = 1;
-	frame.data[STEP].dt = (delta_time / MICROSECONDS_PER_SECOND) * 20;
+	frame.data.step.dt = (delta_time / MICROSECONDS_PER_SECOND) * 20;
 } else {
-	frame.data[STEP].dt = delta_time / MICROSECONDS_PER_SECOND;
+	frame.data.step.dt = delta_time / MICROSECONDS_PER_SECOND;
 };
 
 if (keyboard_check_pressed(ord("Z"))) {
-	scenery.start_distance = frame.data[STEP].distance;
+	scenery.start_distance = frame.data.step.distance;
 	scenery.transitioning = true;
-	if (scenery.current_scene.name == "birch") {
+	if (scenery.cur_scene.name == "birch") {
 		scenery.load_scene("fantasy", "next");
-	} else if (scenery.current_scene.name == "fantasy") {
+	} else if (scenery.cur_scene.name == "fantasy") {
 		scenery.load_scene("gold", "next");
-	} else if (scenery.current_scene.name == "gold") {
+	} else if (scenery.cur_scene.name == "gold") {
 		scenery.load_scene("summer", "next");
-	} else if (scenery.current_scene.name == "summer") {
+	} else if (scenery.cur_scene.name == "summer") {
 		scenery.load_scene("birch", "next");
 	};
 };
@@ -23,7 +23,7 @@ if (keyboard_check_pressed(ord("Z"))) {
 frame = journey.tick(frame);
 frame = travel.update(frame);
 frame = moment.update(frame);
-frame = ledger.witness(frame);
+ledger.witness(frame);
 merchant.exist(frame);
 scenery.update(frame);
 music.update();
