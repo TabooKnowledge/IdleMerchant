@@ -70,7 +70,7 @@ function Journey() constructor {
 #region Travel
 function Travel() constructor {
 	fatigue = 0;
-	fatigue_rate = 0.01;
+	fatigue_rate = 0.001;
 	pace_multiplier = 0;
 	
 	update = function(frame) {
@@ -130,12 +130,12 @@ function Moment() constructor {
 			
 		if (actor.mode == "independent") {
 			_y = random_range(12, room_height * .70);
-			_x = choose(0 - sprite_get_width(spr), room_width);
+			_x = 0 - sprite_get_width(spr);
 			x0 = _x;
-			vx = (_x > 0) ? -50 : 50;
+			vx = 150;
 			dur = (room_width + sprite_get_width(spr) * 2) / abs(vx);
 		} else {
-			_y = room_height * .65;
+			_y = room_height * .45;
 			_x = room_width;
 			x0 = _x;
 			vx = -1;
@@ -146,7 +146,7 @@ function Moment() constructor {
 		self.active = {
 			type: "bird",
 			sprite: spr,
-			z: BACK_DEPTH + 30,
+			z: BACK_DEPTH + 10,
 			x: _x,
 			x0: x0,
 			y: _y,
@@ -199,8 +199,8 @@ function Merchant() constructor {
 	};
 	
 	persist = function(frame) {
-		var frame_index = (frame.data.step.distance * 8) mod 24;
-		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 4) - sprite_get_height(self.sprite) div 2, MID_DEPTH, frame_index, 1, false); 
+		var frame_index = (frame.data.step.distance * 6) mod 24;
+		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 3) - sprite_get_height(self.sprite) div 2, MID_DEPTH, frame_index, 1, false); 
 		array_push(frame.draw_items, note);
 	};
 };
@@ -209,7 +209,8 @@ function Merchant() constructor {
 #region Scenery
 function Scenery() constructor {
 	all_scenes = create_scenery();
-	
+	dist_transitions = transition_distances();
+	transition_i = 0;
 	cur_scene = undefined;
 	cur_scene_name = undefined;
 	cur_frnt_layers = [];
@@ -225,13 +226,23 @@ function Scenery() constructor {
 	start_distance = 0;
 	t_alpha = 0;
 	
-	scroll = 0;
-	
 	update = function(frame) {
-		self.scroll = frame.data.step.distance;
 		self.transition(frame);
 		self.emit_draw_notes(frame);
-		
+		self.at_distance(frame);
+	};
+	
+	at_distance = function(frame) {
+		if (!self.transitioning) {
+			var dist = frame.data.step.distance;
+			var array = self.dist_transitions;
+			while (self.transition_i < array_length(array) && array[self.transition_i].distance <= dist) {
+				self.start_distance = dist;
+				self.transitioning = true;
+				self.load_scene(array[self.transition_i].name,"next");
+				self.transition_i++
+			};
+		};
 	};
 	
 	transition = function(frame) {
@@ -294,10 +305,11 @@ function Scenery() constructor {
 		var total_length = array_length(layers);
 		for (var i = 0; i < array_length(layers); i++) {
 			var _layer = layers[i];
+			var _z = _depth + (i*DEPTH_MULTIPLIER);
 			var max_span = sprite_get_width(_layer);
-			var _speed = depth_speed_conversion(_depth + (i*10));
-			var _x = -(frame.data.step.distance * _speed) mod max_span;
-			array_push(frame.draw_items, create_draw_note(_layer, _x, 0, _depth + (i*10), 0, alpha, true));
+			var _speed = depth_speed_conversion(_z);
+			var _x = ((frame.data.step.distance * _speed) mod max_span) * -1;
+			array_push(frame.draw_items, create_draw_note(_layer, _x, 0, _z, 0, alpha, true));
 		};
 		
 	};
@@ -563,7 +575,7 @@ function create_scenery() {
 	return {
 		birch: {
 			name: "birch",
-			back_layers: ["spr_birch_1", "spr_fantasy_4", "spr_snow_tree_a", "spr_birch_2", "spr_birch_3", "spr_snow_tree_a_1", "spr_birch_4"],
+			back_layers: ["spr_birch_1", "spr_snow_tree_a", "spr_birch_2", "spr_birch_3", "spr_snow_tree_a_1", "spr_birch_4"],
 			front_layers: ["spr_birch_5"],
 			
 		},
@@ -636,11 +648,11 @@ function load_music() {
 function create_actors() {
 	return {
 		bird: {
-			asset_name: "spr_black_bird",
+			asset_name: "spr_black_bird_2",
 			mode: "independent"
 		},
 		woodcutter: {
-			asset_name: "spr_woodcutter",
+			asset_name: "spr_woodcutter_2",
 			mode: "static"
 		},
 	};
@@ -679,9 +691,20 @@ function draw_all(frame) {
 };
 
 function depth_speed_conversion(_depth) {
+	if (_depth < 0) return 0;
 	var units = clamp(_depth / FRONT_DEPTH, 0, 1);
-	units = units * units;
-	return lerp(0.15, 1.2, units) * SPEED_MULT;
+	units = sqrt(units);
+	return lerp(0.15, 1.0, units) * SPEED_MULT;
 };
+	
+function transition_distances() {
+	return [
+		{distance:0, name:"birch"},
+		{distance:1000, name:"gold"},
+		{distance:2000, name:"summer"},
+		{distance:3000, name:"fantasy"},
+	];
+};
+
 
 #endregion
