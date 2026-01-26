@@ -11,7 +11,7 @@ music = new Music();
 components = {journey:journey, merchant:merchant, travel:travel, ledger:ledger, scenery:scenery, music:music};
 
 frame = create_step_signal();
-frame = restore_state(components);
+//frame = restore_state(components);
 
 if (frame.data.signal.audio_pending) {
 	music.load_track("gentle_travel_2");

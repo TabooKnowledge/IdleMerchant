@@ -8,7 +8,7 @@ if (keyboard_check(ord("S"))) {
 
 frame = journey.tick(frame);
 frame = travel.update(frame);
-//frame = moment.update(frame);
+frame = moment.update(frame);
 ledger.witness(frame);
 merchant.exist(frame);
 scenery.update(frame);

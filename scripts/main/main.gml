@@ -120,33 +120,37 @@ function Moment() constructor {
 	};
 	
 	start_moment = function(frame) {
-		var actor = self.all_actors.woodcutter;
+		var actor = choose(self.all_actors.bird, self.all_actors.deer_run, self.all_actors.deer_eat, self.all_actors.deer_sit);
 		var spr = asset_get_index(actor.asset_name);
-		var _y = random_range(12, room_height * .70);
+		var _y = 0;		
 		var _x = 0;
+		var z = choose(BACK_DEPTH, BACK_DEPTH + 100, BACK_DEPTH + 200);
 		var x0 = 0;
 		var vx = 0;
 		var dur = 0;
-			
-		if (actor.mode == "independent") {
-			_y = random_range(12, room_height * .70);
-			_x = 0 - sprite_get_width(spr);
-			x0 = _x;
-			vx = 150;
-			dur = (room_width + sprite_get_width(spr) * 2) / abs(vx);
+		
+		if (actor.anchored) {
+			_y = room_height * frame.data.signal.y_anchor;
 		} else {
-			_y = room_height * .45;
-			_x = room_width;
-			x0 = _x;
-			vx = -1;
-			dur = 3000;
+			_y = random_range(12, room_height * .70);
 		};
 		
+		if (actor.mode == "independent") {
+			_x = -sprite_get_width(spr);
+			vx = random_range(50, 150);
+			dur = (room_width + sprite_get_width(spr) * 2) / abs(vx);
+		} else {
+			_x = room_width;
+			vx = -1;
+			dur = (room_width + sprite_get_width(spr) * 2) / abs(depth_speed_conversion(z));
+		};
+		print(dur);
+		x0 = _x;
 		
 		self.active = {
-			type: "bird",
+			type: actor.kind,
 			sprite: spr,
-			z: BACK_DEPTH + 10,
+			z: z,
 			x: _x,
 			x0: x0,
 			y: _y,
@@ -155,7 +159,8 @@ function Moment() constructor {
 			dur: dur,
 			dist_at_spawn: frame.data.step.distance
 		};
-		frame.data.signal.moment = "bird";
+		frame.data.signal.moment = actor.kind;
+		print(actor.kind);
 		
 	};
 	
@@ -169,9 +174,8 @@ function Moment() constructor {
 			moment.x += moment.vx * dt;
 		};
 		
-
 		var frames = max(1, sprite_get_number(moment.sprite));
-		var frame_index = floor(moment.t * 10) mod frames;
+		var frame_index = floor(moment.t * ANIM_SPEED_MULT) mod frames;
 
 		array_push(
 			frame.draw_items,
@@ -199,8 +203,10 @@ function Merchant() constructor {
 	};
 	
 	persist = function(frame) {
-		var frame_index = (frame.data.step.distance * 6) mod 24;
-		var note = create_draw_note(self.sprite, room_width div 6 - sprite_get_width(self.sprite) div 2, (room_height - room_height div 3) - sprite_get_height(self.sprite) div 2, MID_DEPTH, frame_index, 1, false); 
+		var frame_index = (frame.data.step.distance * 6) mod 8;
+		var _x = room_width div 6 - sprite_get_width(self.sprite) div 2;
+		var _y = (room_height - room_height div 3) - sprite_get_height(self.sprite) div 2;
+		var note = create_draw_note(self.sprite, _x, _y, MID_DEPTH, frame_index, 1, false); 
 		array_push(frame.draw_items, note);
 	};
 };
@@ -230,6 +236,9 @@ function Scenery() constructor {
 		self.transition(frame);
 		self.emit_draw_notes(frame);
 		self.at_distance(frame);
+		
+		if (self.cur_scene != undefined) frame.data.signal.y_anchor = self.cur_scene.y_anchor;
+		return frame;
 	};
 	
 	at_distance = function(frame) {
@@ -250,12 +259,12 @@ function Scenery() constructor {
 			self.t_alpha = (frame.data.step.distance - self.start_distance) / self.transition_length;
 			self.t_alpha = clamp(self.t_alpha, 0, 1);
 			if (self.t_alpha >= 1) {
-				self.complete_transition();
+				self.complete_transition(frame);
 			};
 		};
 	};
 	
-	complete_transition = function() {
+	complete_transition = function(frame) {
 		self.transitioning = false;
 		self.t_alpha = 0;
 		self.cur_scene = self.nxt_scene;
@@ -318,12 +327,12 @@ function Scenery() constructor {
 		draw_sprite_stretched(spr_black_pixel, 0, 0, room_height, room_width, room_height);
 		draw_sprite_ext(spr_paper_1, 0, 0, room_height, 1, 1.25, 0, c_white, .9);
 		
-		draw_text(25, room_height + 25, "Time: ");
-		draw_text(75, room_height + 25, string_format(frame.data.step.time, 0, 0));
-		draw_text(25, room_height + 50, "Distance: ");
-		draw_text(110, room_height + 50, string_format(frame.data.step.distance, 0, 0));
-		draw_text(25, room_height + 75, "Away Time: ");
-		draw_text(120, room_height + 75, string_format(frame.data.signal.offline_time, 0, 0));		
+		//draw_text(25, room_height + 25, "Time: ");
+		//draw_text(75, room_height + 25, string_format(frame.data.step.time, 0, 0));
+		//draw_text(25, room_height + 50, "Distance: ");
+		//draw_text(110, room_height + 50, string_format(frame.data.step.distance, 0, 0));
+		//draw_text(25, room_height + 75, "Away Time: ");
+		//draw_text(120, room_height + 75, string_format(frame.data.signal.offline_time, 0, 0));		
 	};
 	
 };
@@ -339,12 +348,21 @@ function Ledger() constructor {
 	time_i = 0;
 	distance_events = create_distance_events();
 	dist_i = 0;
+	type_events = create_type_events();
+	
 	
 	update = function() {
 		
 	};
 
 	witness = function(frame) {
+		var kind = variable_struct_get(self.type_events, frame.data.signal.moment);
+		if (kind != undefined) {
+			if (!array_contains(self.record, kind)) {
+				array_push(self.record, kind);
+				self.update_showing();
+			};
+		};
 		if (self.time_i < array_length(self.time_events)) {
 			var time = frame.data.step.time;
 			var array = self.time_events;
@@ -407,7 +425,6 @@ function Music() constructor {
 		if (self.track_inst != undefined) {
 			self.audio_last_pos = audio_sound_get_track_position(self.track_inst);
 		};
-		
 	};
 	
 	load_track = function(name) {
@@ -417,7 +434,6 @@ function Music() constructor {
 		self.track_inst = track_inst;
 		self.current_track_name = name;
 		self.track_length = audio_sound_length(track_asset);
-		
 	};
 };
 #endregion
@@ -425,6 +441,7 @@ function Music() constructor {
 #region Save/Load
 function save(data, file_name) {
 	var json_string = json_stringify(data);
+	print(data);
 	var file = file_text_open_write(file_name);
 	file_text_write_string(file, json_string);
 	file_text_close(file);
@@ -510,7 +527,6 @@ function load_components_state(save_data, components) {
 	components.ledger.showing = save_data.showing;
 	
 	components.scenery.load_scene(save_data.cur_scene_name, "current");
-	print(save_data.cur_scene_name);
 	if (save_data.nxt_scene_name != undefined) {
 		components.scenery.load_scene(save_data.nxt_scene_name, "next");
 	};
@@ -559,13 +575,15 @@ function create_step_signal() {
 				dt: 0
 			},
 			signal: {
+				moment: undefined,
+				y_anchor: 1,
 				offline_time: 0,
 		        offline_distance: 0,
 				pace_multiplier: 1,
 		        rest_request: false,
 		        fatigue: 0,
-				audio_pending: false,
-			},
+				audio_pending: false
+			}
 		},
 		draw_items: []
 	};
@@ -577,17 +595,20 @@ function create_scenery() {
 			name: "birch",
 			back_layers: ["spr_birch_1", "spr_snow_tree_a", "spr_birch_2", "spr_birch_3", "spr_snow_tree_a_1", "spr_birch_4"],
 			front_layers: ["spr_birch_5"],
+			y_anchor: .55
 			
 		},
 		gold: {
 			name: "gold",
 			back_layers: ["spr_gold_1", "spr_gold_2", "spr_gold_6", "spr_gold_3", "spr_gold_4"],
 			front_layers: ["spr_gold_5"],
+			y_anchor: .2
 		},
 		fantasy: {
 			name: "fantasy",
 			back_layers: ["spr_fantasy_1", "spr_fantasy_2", "spr_fantasy_6", "spr_fantasy_3", "spr_fantasy_7", "spr_fantasy_4"],
-			front_layers: ["spr_fantasy_5"]
+			front_layers: ["spr_fantasy_5"],
+			y_anchor: .2
 		},
 		
 		mountain_sunset: {
@@ -596,19 +617,22 @@ function create_scenery() {
 				"spr_mountain_sunset_05", "spr_mountain_sunset_06", "spr_mountain_sunset_07", "spr_mountain_sunset_08", "spr_mountain_sunset_09",
 				"spr_mountain_sunset_10", "spr_mountain_sunset_11", "spr_mountain_sunset_12", "spr_mountain_sunset_13", "spr_mountain_sunset_14",
 				"spr_mountain_sunset_15", "spr_mountain_sunset_16"],
-			front_layers: []
+			front_layers: [],
+			y_anchor: .2
 		},
 		
 		summer: {
 			name: "summer",
 			back_layers: ["spr_summer_01", "spr_summer_02", "spr_summer_03", "spr_summer_04"],
-			front_layers: ["spr_summer_05"]
+			front_layers: ["spr_summer_05"],
+			y_anchor: .2
 		},
 		
 		expir: {
 			name: "expir",
 			back_layers: ["spr_ai_blue_sky", "spr_ai_mountain_a", "spr_ai_trees_a", "spr_ai_mountain_path"],
-			front_layers: []
+			front_layers: [],
+			y_anchor: .2
 		},
 	};
 };
@@ -637,6 +661,14 @@ function create_distance_events() {
 	return events;
 };
 
+function create_type_events() {
+	return {
+		bird: "A whistle on the wind.",
+		deer: "They never let me get too close.",
+		person: "That sound scares off the wildlife."
+	};
+};
+
 function load_music() {
 	return {
 		gentle_travel: snd_gentle_travel,
@@ -649,11 +681,33 @@ function create_actors() {
 	return {
 		bird: {
 			asset_name: "spr_black_bird_2",
-			mode: "independent"
+			mode: "independent",
+			anchored: false,
+			kind: "bird"
 		},
 		woodcutter: {
-			asset_name: "spr_woodcutter_2",
-			mode: "static"
+			asset_name: "spr_woodcutter",
+			mode: "static",
+			anchored: true,
+			kind: "person"
+		},
+		deer_eat: {
+			asset_name: "spr_deer_2",
+			mode: "static",
+			anchored: true,
+			kind: "deer"
+		},
+		deer_run: {
+			asset_name: "spr_deer_gallop_1",
+			mode: "independent",
+			anchored: true,
+			kind: "deer"
+		},
+		deer_sit: {
+			asset_name: "spr_deer_wht_sit_1",
+			mode: "static",
+			anchored: true,
+			kind: "deer"
 		},
 	};
 };
@@ -694,17 +748,15 @@ function depth_speed_conversion(_depth) {
 	if (_depth < 0) return 0;
 	var units = clamp(_depth / FRONT_DEPTH, 0, 1);
 	units = sqrt(units);
-	return lerp(0.15, 1.0, units) * SPEED_MULT;
+	return lerp(0.15, 1.0, units) * SCROLL_SPEED_MULT;
 };
 	
 function transition_distances() {
 	return [
-		{distance:0, name:"birch"},
+		{distance:0000, name:"birch"},
 		{distance:1000, name:"gold"},
 		{distance:2000, name:"summer"},
 		{distance:3000, name:"fantasy"},
 	];
 };
-
-
 #endregion
